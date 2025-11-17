@@ -28,6 +28,7 @@ import toast from 'react-hot-toast';
 import OrderTrackingMap from '@/components/OrderTrackingMap';
 import OrderStatusTimeline from '@/components/OrderStatusTimeline';
 import DriverInfo from '@/components/DriverInfo';
+import { sendOrderStatus } from '@/lib/whatsapp';
 
 export default function OrderTrackingPage() {
   const params = useParams();
@@ -127,7 +128,20 @@ export default function OrderTrackingPage() {
             [OrderStatus.REFUNDED]: 'İade Edildi'
           };
           
-          toast.success(`Sipariş durumu güncellendi: ${statusLabels[orderData.status] || orderData.status}`);
+          const statusMessage = statusLabels[orderData.status] || orderData.status;
+          toast.success(`Sipariş durumu güncellendi: ${statusMessage}`);
+
+          const phoneNumber =
+            orderData.deliveryAddress?.phone ||
+            orderData.user?.phoneNumber ||
+            '';
+          if (phoneNumber) {
+            void sendOrderStatus(phoneNumber, statusMessage).then((result) => {
+              if (!result.success) {
+                console.warn('WhatsApp bildirimi gönderilemedi:', result.error);
+              }
+            });
+          }
         }
 
         setOrder(orderData);

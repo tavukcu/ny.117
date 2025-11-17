@@ -31,6 +31,7 @@ import {
   Star
 } from 'lucide-react';
 import Link from 'next/link';
+import { sendOrderStatus } from '@/lib/whatsapp';
 
 // Sipariş detay sayfası komponenti
 export default function OrderDetailPage() {
@@ -131,6 +132,18 @@ export default function OrderDetailPage() {
       } : null);
       
       toast.success(`Sipariş durumu "${getStatusText(newStatus)}" olarak güncellendi`);
+
+      const phone =
+        order.deliveryAddress?.phone ||
+        order.user?.phoneNumber ||
+        '';
+      if (phone) {
+        const whatsappMessage = getStatusText(newStatus);
+        const whatsappResult = await sendOrderStatus(phone, whatsappMessage);
+        if (!whatsappResult.success) {
+          console.warn('WhatsApp bildirimi gönderilemedi:', whatsappResult.error);
+        }
+      }
     } catch (error) {
       console.error('Sipariş durumu güncellenirken hata:', error);
       toast.error('Sipariş durumu güncellenirken bir hata oluştu');

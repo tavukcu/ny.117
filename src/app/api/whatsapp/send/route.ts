@@ -1,3 +1,68 @@
+import { NextResponse } from 'next/server';
+
+const WABA_TOKEN = process.env.NEXT_PUBLIC_WABA_TOKEN;
+const WABA_PHONE_ID = process.env.NEXT_PUBLIC_WABA_PHONE_NUMBER_ID;
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const phone: string | undefined = body?.phone;
+    const message: string | undefined = body?.message;
+
+    if (!phone || !message) {
+      return NextResponse.json(
+        { success: false, error: 'phone ve message alanları gereklidir' },
+        { status: 400 }
+      );
+    }
+
+    if (!WABA_TOKEN || !WABA_PHONE_ID) {
+      return NextResponse.json(
+        { success: false, error: 'WhatsApp API yapılandırması eksik' },
+        { status: 500 }
+      );
+    }
+
+    const payload = {
+      messaging_product: 'whatsapp',
+      to: phone,
+      type: 'text',
+      text: { body: message },
+    };
+
+    const response = await fetch(
+      `https://graph.facebook.com/v20.0/${WABA_PHONE_ID}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${WABA_TOKEN}`,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      const errorMessage = data?.error?.message || 'WhatsApp API hatası';
+      return NextResponse.json(
+        { success: false, error: errorMessage, details: data },
+        { status: response.status }
+      );
+    }
+
+    return NextResponse.json({ success: true, data });
+  } catch (error) {
+    console.error('WhatsApp API isteği başarısız:', error);
+    const message =
+      error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu';
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 }
+    );
+  }
+}
 import { NextRequest, NextResponse } from 'next/server';
 import { WhatsAppService } from '@/services/whatsappService';
 import { OrderService } from '@/services/orderService';
