@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentUserPresence } from '@/hooks/useUserPresence';
 import { useCart } from '@/hooks/useCart';
@@ -196,20 +195,21 @@ export default function Header() {
       <div className="container-responsive">
         <div className="flex items-center justify-between h-14 sm:h-16 lg:h-18 xl:h-20">
           {/* Logo Section */}
-          <Link href="/" className="group flex items-center space-x-1 sm:space-x-1 transition-all duration-300 hover:scale-105">
-            {/* LOGO + YAZI */}
-            <div className="flex items-center gap-2">
-              <Image
-                src="/logo.png"
-                alt="Neyisek Logo"
-                width={48}
-                height={48}
-                className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 xl:h-14 xl:w-14 object-contain rounded-lg drop-shadow-sm group-hover:rotate-6 transition-transform duration-300"
+          <Link href="/" className="group flex items-center gap-2 sm:gap-2 transition-all duration-300 hover:scale-105">
+            
+            {/* NeYisek Logo */}
+            <div className="relative">
+              <img 
+                src="/logo.png" 
+                alt="NeYisek Logo" 
+                className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 xl:h-14 xl:w-14 object-contain rounded-lg drop-shadow-sm group-hover:rotate-6 transition-transform duration-300" 
               />
-              <span className="text-xl font-bold" style={{ color: '#0F9D58' }}>
-                NEYİSEK
-              </span>
             </div>
+
+            {/* LOGO YANINA NEYİSEK YAZISI */}
+            <span className="text-lg sm:text-xl font-bold" style={{ color: "#0F9D58" }}>
+              NEYİSEK
+            </span>
           </Link>
 
           {/* Desktop Navigation */}
