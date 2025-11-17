@@ -20,7 +20,8 @@ import {
   Transaction, 
   RestaurantFinancials, 
   PaymentMethod,
-  Order 
+  Order,
+  OrderStatus
 } from '@/types';
 
 export class CommissionService {
@@ -271,13 +272,26 @@ export class CommissionService {
 
   // Sipariş tamamlandığında mali işlem otomatik oluşturma
   static async processOrderCompletion(order: Order): Promise<void> {
-    if (order.status !== 'delivered') {
+    if (order.status !== OrderStatus.DELIVERED) {
       throw new Error('Sadece teslim edilmiş siparişler için mali işlem oluşturulabilir');
     }
 
     // Transaction ID zaten varsa işlem yapma
     if (order.transactionId) {
       return;
+    }
+    
+    if (!order.commissionCalculation) {
+      const fallbackSubtotal = typeof order.subtotal === 'number'
+        ? order.subtotal
+        : typeof order.total === 'number'
+          ? order.total
+          : 0;
+      order.commissionCalculation = this.calculateCommission(fallbackSubtotal);
+    }
+    
+    if (!order.paymentMethod) {
+      order.paymentMethod = PaymentMethod.CASH_ON_DELIVERY;
     }
 
     const batch = writeBatch(db);

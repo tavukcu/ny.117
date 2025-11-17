@@ -636,6 +636,13 @@ export interface Order {
   paymentMethod: PaymentMethod;
   deliveryAddress: OrderDeliveryAddress;
   
+  // Durum geçmişi
+  statusHistory?: Array<{
+    status: OrderStatus;
+    at: Date | any; // Firebase Timestamp veya Date
+    by: string; // "system" | "telegram:<chatId>" | "restaurant:<id>" | "admin:<id>"
+  }>;
+  
   // Takip bilgileri
   tracking: OrderTracking;
   

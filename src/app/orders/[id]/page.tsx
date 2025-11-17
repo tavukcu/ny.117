@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/hooks/useAuth';
 import { OrderTrackingService } from '@/services/orderTrackingService';
 import { OrderService } from '@/services/orderService';
 import type { Order, OrderTracking, OrderStatus, DeliveryDriver } from '@/types';
@@ -29,6 +32,7 @@ import DriverInfo from '@/components/DriverInfo';
 export default function OrderTrackingPage() {
   const params = useParams();
   const orderId = params.id as string;
+  const { user, guestUser } = useAuth();
   
   const [order, setOrder] = useState<Order | null>(null);
   const [tracking, setTracking] = useState<OrderTracking | null>(null);
@@ -36,16 +40,26 @@ export default function OrderTrackingPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-      if (!orderId) return;
+    if (!orderId) return;
 
-    const loadOrderData = async () => {
+    // İlk yükleme
+    const loadInitialData = async () => {
       try {
         setIsLoading(true);
         
         // Sipariş bilgilerini yükle
-        const orderData = await OrderService.getOrderById(orderId);
+        const orderData = await OrderService.getOrder(orderId);
         if (!orderData) {
           setError('Sipariş bulunamadı');
+          setIsLoading(false);
+          return;
+        }
+
+        // Güvenlik kontrolü: Sipariş müşteriye ait mi?
+        const currentUserId = user?.uid || guestUser?.id;
+        if (orderData.userId !== currentUserId && !user?.isAdmin) {
+          setError('Bu siparişi görüntüleme yetkiniz yok');
+          setIsLoading(false);
           return;
         }
 
@@ -64,10 +78,68 @@ export default function OrderTrackingPage() {
       }
     };
 
-    loadOrderData();
+    loadInitialData();
+
+    // Real-time Order dinleme (Firestore onSnapshot)
+    const orderRef = doc(db, 'orders', orderId);
+    const unsubscribeOrder = onSnapshot(
+      orderRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          setError('Sipariş bulunamadı');
+          return;
+        }
+
+        const data = snapshot.data();
+        const orderData: Order = {
+          id: snapshot.id,
+          ...data,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+          estimatedDeliveryTime: data.estimatedDeliveryTime?.toDate() || new Date(),
+          actualDeliveryTime: data.actualDeliveryTime?.toDate(),
+          statusHistory: data.statusHistory?.map((item: any) => ({
+            ...item,
+            at: item.at?.toDate ? item.at.toDate() : item.at
+          })) || []
+        } as Order;
+
+        // Güvenlik kontrolü
+        const currentUserId = user?.uid || guestUser?.id;
+        if (orderData.userId !== currentUserId && !user?.isAdmin) {
+          setError('Bu siparişi görüntüleme yetkiniz yok');
+          return;
+        }
+
+        // Önceki durumla karşılaştır ve bildirim göster
+        if (order && order.status !== orderData.status) {
+          const statusLabels: Record<OrderStatus, string> = {
+            [OrderStatus.PENDING]: 'Onay Bekliyor',
+            [OrderStatus.CONFIRMED]: 'Sipariş Onaylandı',
+            [OrderStatus.PREPARING]: 'Hazırlanıyor',
+            [OrderStatus.READY]: 'Hazır',
+            [OrderStatus.ASSIGNED]: 'Kurye Atandı',
+            [OrderStatus.PICKED_UP]: 'Kurye Aldı',
+            [OrderStatus.DELIVERING]: 'Yolda',
+            [OrderStatus.ARRIVED]: 'Adrese Vardı',
+            [OrderStatus.DELIVERED]: 'Teslim Edildi',
+            [OrderStatus.CANCELLED]: 'İptal Edildi',
+            [OrderStatus.REFUNDED]: 'İade Edildi'
+          };
+          
+          toast.success(`Sipariş durumu güncellendi: ${statusLabels[orderData.status] || orderData.status}`);
+        }
+
+        setOrder(orderData);
+      },
+      (error) => {
+        console.error('Real-time order dinleme hatası:', error);
+        toast.error('Sipariş güncellemeleri alınamıyor');
+      }
+    );
 
     // Gerçek zamanlı takip aboneliği
-    const unsubscribe = OrderTrackingService.subscribeToOrderTracking(
+    const unsubscribeTracking = OrderTrackingService.subscribeToOrderTracking(
       orderId,
       (trackingData) => {
         setTracking(trackingData);
@@ -80,8 +152,11 @@ export default function OrderTrackingPage() {
       }
     );
 
-    return () => unsubscribe();
-  }, [orderId]);
+    return () => {
+      unsubscribeOrder();
+      unsubscribeTracking();
+    };
+  }, [orderId, user, guestUser]);
 
   const handleCallDriver = async () => {
     if (!tracking?.driver?.phone) {
@@ -297,6 +372,81 @@ export default function OrderTrackingPage() {
             <div className="bg-white rounded-2xl shadow-lg p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Sipariş Durumu</h2>
               <OrderStatusTimeline tracking={tracking} />
+              
+              {/* Status History (Telegram'dan gelen güncellemeler) */}
+              {order?.statusHistory && order.statusHistory.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Durum Geçmişi</h3>
+                  <div className="space-y-3">
+                    {order.statusHistory
+                      .slice()
+                      .reverse()
+                      .map((historyItem, index) => {
+                        const statusLabels: Record<OrderStatus, string> = {
+                          [OrderStatus.PENDING]: 'Onay Bekliyor',
+                          [OrderStatus.CONFIRMED]: 'Sipariş Onaylandı',
+                          [OrderStatus.PREPARING]: 'Hazırlanıyor',
+                          [OrderStatus.READY]: 'Hazır',
+                          [OrderStatus.ASSIGNED]: 'Kurye Atandı',
+                          [OrderStatus.PICKED_UP]: 'Kurye Aldı',
+                          [OrderStatus.DELIVERING]: 'Yolda',
+                          [OrderStatus.ARRIVED]: 'Adrese Vardı',
+                          [OrderStatus.DELIVERED]: 'Teslim Edildi',
+                          [OrderStatus.CANCELLED]: 'İptal Edildi',
+                          [OrderStatus.REFUNDED]: 'İade Edildi'
+                        };
+                        
+                        const statusColors: Record<OrderStatus, string> = {
+                          [OrderStatus.PENDING]: 'bg-yellow-100 text-yellow-800',
+                          [OrderStatus.CONFIRMED]: 'bg-blue-100 text-blue-800',
+                          [OrderStatus.PREPARING]: 'bg-orange-100 text-orange-800',
+                          [OrderStatus.READY]: 'bg-purple-100 text-purple-800',
+                          [OrderStatus.ASSIGNED]: 'bg-indigo-100 text-indigo-800',
+                          [OrderStatus.PICKED_UP]: 'bg-green-100 text-green-800',
+                          [OrderStatus.DELIVERING]: 'bg-green-100 text-green-800',
+                          [OrderStatus.ARRIVED]: 'bg-green-100 text-green-800',
+                          [OrderStatus.DELIVERED]: 'bg-green-100 text-green-800',
+                          [OrderStatus.CANCELLED]: 'bg-red-100 text-red-800',
+                          [OrderStatus.REFUNDED]: 'bg-gray-100 text-gray-800'
+                        };
+                        
+                        const historyDate = historyItem.at instanceof Date 
+                          ? historyItem.at 
+                          : historyItem.at?.toDate 
+                          ? historyItem.at.toDate() 
+                          : new Date();
+                        
+                        const updatedByText = historyItem.by.startsWith('telegram:')
+                          ? 'Telegram Bot'
+                          : historyItem.by.startsWith('restaurant:')
+                          ? 'Restoran'
+                          : historyItem.by.startsWith('admin:')
+                          ? 'Admin'
+                          : 'Sistem';
+                        
+                        return (
+                          <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                            <div className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColors[historyItem.status]}`}>
+                              {statusLabels[historyItem.status] || historyItem.status}
+                            </div>
+                            <div className="flex-1 text-sm text-gray-600">
+                              {historyDate.toLocaleString('tr-TR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {updatedByText}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Sipariş Detayları */}

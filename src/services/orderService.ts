@@ -10,8 +10,10 @@ import {
   orderBy, 
   limit,
   serverTimestamp,
+  Timestamp,
   onSnapshot,
-  Unsubscribe
+  Unsubscribe,
+  arrayUnion
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Order, OrderStatus, PaymentMethod, CommissionCalculation, EmailType } from '@/types';
@@ -43,6 +45,11 @@ export class OrderService {
         ...orderData,
         commissionCalculation,
         status: OrderStatus.PENDING,
+        statusHistory: [{
+          status: OrderStatus.PENDING,
+          at: Timestamp.now(),
+          by: 'system'
+        }],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
@@ -302,11 +309,16 @@ export class OrderService {
   }
 
   // Sipariş durumunu güncelleme (komisyon işlemi ve e-posta bildirimi ile)
-  static async updateOrderStatus(orderId: string, status: OrderStatus): Promise<void> {
+  static async updateOrderStatus(orderId: string, status: OrderStatus, updatedBy: string = 'system'): Promise<void> {
     const orderRef = doc(db, this.COLLECTION_NAME, orderId);
     const updates: any = {
       status,
-      updatedAt: serverTimestamp()
+      updatedAt: serverTimestamp(),
+      statusHistory: arrayUnion({
+        status,
+        at: Timestamp.now(),
+        by: updatedBy
+      })
     };
 
     if (status === OrderStatus.DELIVERED) {
@@ -342,12 +354,55 @@ export class OrderService {
     // Eğer sipariş teslim edildiyse, mali işlem oluştur
     if (status === OrderStatus.DELIVERED) {
       try {
-        const order = await this.getOrder(orderId);
-        if (order) {
-          await CommissionService.processOrderCompletion(order);
+        const orderSnap = await getDoc(orderRef);
+        if (orderSnap.exists()) {
+          const orderData = orderSnap.data();
+          const normalizedStatusHistory = orderData.statusHistory?.map((item: any) => ({
+            ...item,
+            at: item.at?.toDate ? item.at.toDate() : item.at
+          })) || [];
+          
+          const baseSubtotal = typeof orderData.subtotal === 'number'
+            ? orderData.subtotal
+            : typeof orderData.total === 'number'
+              ? orderData.total
+              : 0;
+          
+          const ensuredCommissionCalculation =
+            orderData.commissionCalculation ||
+            CommissionService.calculateCommission(baseSubtotal);
+          
+          const ensuredPaymentMethod =
+            orderData.paymentMethod || PaymentMethod.CASH_ON_DELIVERY;
+          
+          const order: Order = {
+            id: orderSnap.id,
+            ...orderData,
+            commissionCalculation: ensuredCommissionCalculation,
+            paymentMethod: ensuredPaymentMethod,
+            createdAt: orderData.createdAt?.toDate() || new Date(),
+            updatedAt: orderData.updatedAt?.toDate() || new Date(),
+            estimatedDeliveryTime: orderData.estimatedDeliveryTime?.toDate() || new Date(),
+            actualDeliveryTime: orderData.actualDeliveryTime?.toDate(),
+            statusHistory: normalizedStatusHistory
+          } as Order;
+          
+          if (order.status === OrderStatus.DELIVERED) {
+            console.log('✅ Sipariş teslim edildi, mali işlem oluşturuluyor:', orderId);
+            await CommissionService.processOrderCompletion(order);
+            console.log('✅ Mali işlem başarıyla oluşturuldu:', orderId);
+          } else {
+            console.warn('⚠️ Sipariş teslim edildi ancak belge hâlâ farklı durum gösteriyor:', orderId, order.status);
+          }
+        } else {
+          console.error('❌ Sipariş bulunamadı (mali işlem için):', orderId);
         }
       } catch (error) {
-        console.error('Mali işlem oluşturulurken hata:', error);
+        console.error('❌ Mali işlem oluşturulurken hata:', error);
+        if (error instanceof Error) {
+          console.error('❌ Hata detayı:', error.message);
+          console.error('❌ Stack trace:', error.stack);
+        }
         // Sipariş durumu güncellendi ama mali işlem başarısız oldu
         // Bu durumda manuel müdahale gerekebilir
       }

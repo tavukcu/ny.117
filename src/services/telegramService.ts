@@ -374,16 +374,38 @@ ${data.specialInstructions ? `📝 <b>Özel Talimatlar:</b>\n${data.specialInstr
             throw new Error('Bilinmeyen sipariş durumu');
         }
 
-        // Sipariş durumunu güncelle (OrderService'i kullanarak)
-        await this.updateOrderStatus(orderId, newStatus);
+        try {
+          // Sipariş durumunu güncelle (OrderService'i kullanarak)
+          // updatedBy: telegram:<chatId> formatında
+          const updatedBy = `telegram:${callbackQuery.from.id}`;
+          await this.updateOrderStatus(orderId, newStatus, updatedBy);
 
-        // Callback query'yi yanıtla
-        await this.answerCallbackQuery(callbackQuery.id, responseText);
+          // Callback query'yi yanıtla
+          await this.answerCallbackQuery(callbackQuery.id, responseText);
 
-        // Mesajı güncelle
-        await this.editMessageReplyMarkup(chatId, messageId, this.getUpdatedKeyboard(orderId, newStatus));
+          // Mesajı güncelle
+          await this.editMessageReplyMarkup(chatId, messageId, this.getUpdatedKeyboard(orderId, newStatus));
 
-        return { success: true, response: responseText };
+          return { success: true, response: responseText };
+        } catch (error) {
+          console.error('❌ Sipariş durumu güncelleme hatası:', error);
+          
+          // Telegram'a hata mesajı gönder
+          const errorMessage = error instanceof Error && error.message.includes('not found')
+            ? '❌ Sipariş bulunamadı!'
+            : '❌ Sipariş durumu güncellenirken bir hata oluştu!';
+          
+          await this.answerCallbackQuery(callbackQuery.id, errorMessage);
+          
+          // Hata mesajını chat'e de gönder
+          await this.sendMessage({
+            chat_id: chatId,
+            text: `⚠️ <b>Hata</b>\n\n${errorMessage}\n\n📋 <b>Sipariş ID:</b> #${orderId}\n🔄 <b>Durum:</b> ${status}`,
+            parse_mode: 'HTML'
+          });
+          
+          return { success: false, response: errorMessage };
+        }
       }
 
       // Müşteriyi arama
@@ -474,15 +496,21 @@ ${data.specialInstructions ? `📝 <b>Özel Talimatlar:</b>\n${data.specialInstr
 
 
   // Sipariş durumunu güncelle
-  private static async updateOrderStatus(orderId: string, newStatus: OrderStatus): Promise<void> {
+  private static async updateOrderStatus(orderId: string, newStatus: OrderStatus, updatedBy: string): Promise<void> {
     try {
       // OrderService'i import et ve kullan
       const { OrderService } = await import('./orderService');
-      await OrderService.updateOrderStatus(orderId, newStatus);
+      await OrderService.updateOrderStatus(orderId, newStatus, updatedBy);
       
-      console.log(`✅ Sipariş durumu güncellendi: ${orderId} -> ${newStatus}`);
+      console.log(`✅ Sipariş durumu güncellendi: ${orderId} -> ${newStatus} (by: ${updatedBy})`);
     } catch (error) {
       console.error('❌ Sipariş durumu güncelleme hatası:', error);
+      
+      // Sipariş bulunamadı hatası için Telegram'a uyarı gönder
+      if (error instanceof Error && error.message.includes('not found')) {
+        throw new Error('Sipariş bulunamadı');
+      }
+      
       throw error;
     }
   }
@@ -554,13 +582,72 @@ ${data.specialInstructions ? `📝 <b>Özel Talimatlar:</b>\n${data.specialInstr
 
   // Güncellenmiş keyboard'ı al
   private static getUpdatedKeyboard(orderId: string, status: OrderStatus): any {
-    // Sipariş durumuna göre buttonları deaktive et
-    const statusText = this.getStatusText(status);
-    
+    const isFinalStatus = status === OrderStatus.DELIVERED || status === OrderStatus.CANCELLED || status === OrderStatus.REFUNDED;
+
+    const buildActionButton = (
+      label: string,
+      action: string,
+      isActive: boolean,
+      completedLabel?: string
+    ) => ({
+      text: isActive ? label : (completedLabel || `✅ ${label}`),
+      callback_data: isActive ? `order_${action}_${orderId}` : `status_info_${orderId}`
+    });
+
+    if (isFinalStatus) {
+      return {
+        inline_keyboard: [
+          [
+            {
+              text: `${this.getStatusEmoji(status)} ${this.getStatusText(status)}`,
+              callback_data: `status_info_${orderId}`
+            }
+          ],
+          [
+            { text: '📞 Müşteriyi Ara', callback_data: `call_customer_${orderId}` }
+          ]
+        ]
+      };
+    }
+
+    const confirmActive = status === OrderStatus.PENDING;
+    const preparingActive = status === OrderStatus.PENDING || status === OrderStatus.CONFIRMED || status === OrderStatus.PREPARING;
+    const deliveringActive = status === OrderStatus.PREPARING || status === OrderStatus.READY || status === OrderStatus.ASSIGNED || status === OrderStatus.PICKED_UP || status === OrderStatus.DELIVERING || status === OrderStatus.ARRIVED;
+    const completeActive = status === OrderStatus.DELIVERING || status === OrderStatus.ARRIVED || status === OrderStatus.READY || status === OrderStatus.PICKED_UP;
+
     return {
       inline_keyboard: [
         [
-          { text: `${this.getStatusEmoji(status)} ${statusText}`, callback_data: `status_info_${orderId}` }
+          buildActionButton(
+            confirmActive ? '✅ Onayla' : '✅ Onaylandı',
+            'confirm',
+            confirmActive,
+            '✅ Onaylandı'
+          ),
+          buildActionButton('❌ Reddet', 'reject', status !== OrderStatus.CANCELLED && !isFinalStatus, '❌ Reddedildi')
+        ],
+        [
+          buildActionButton(
+            preparingActive ? '👨‍🍳 Hazırlanıyor' : '👨‍🍳 Hazırlanıyor ✅',
+            'preparing',
+            preparingActive,
+            '👨‍🍳 Hazırlanıyor ✅'
+          ),
+          buildActionButton(
+            deliveringActive ? '🚚 Yolda' : '🚚 Yolda ✅',
+            'delivery',
+            deliveringActive,
+            '🚚 Yolda ✅'
+          )
+        ],
+        [
+          buildActionButton(
+            '✅ Teslim Edildi',
+            'completed',
+            completeActive,
+            '✅ Teslim Edildi'
+          ),
+          { text: '📞 Müşteriyi Ara', callback_data: `call_customer_${orderId}` }
         ]
       ]
     };
