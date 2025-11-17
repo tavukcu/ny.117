@@ -1,0 +1,54 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // GELİŞTİRME MODU - TÜM YAZMA İZİNLERİ AÇIK
+    // ⚠️ DİKKAT: Bu kurallar sadece geliştirme için kullanılmalıdır!
+    
+    // Herkes okuyabilir ve yazabilir (test için)
+    match /{document=**} {
+      allow read, write: if true;
+    }
+    
+    // Kategoriler - herkes okuyabilir ve yazabilir
+    match /categories/{categoryId} {
+      allow read, write: if true;
+    }
+    
+    // Restoranlar - herkes okuyabilir ve yazabilir
+    match /restaurants/{restaurantId} {
+      allow read, write: if true;
+    }
+    
+    // Ürünler - herkes okuyabilir ve yazabilir
+    match /products/{productId} {
+      allow read, write: if true;
+    }
+    
+    // Siparişler - herkes okuyabilir ve yazabilir
+    match /orders/{orderId} {
+      allow read, write: if true;
+    }
+    
+    // Kullanıcılar - herkes okuyabilir ve yazabilir
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+    
+    // Diğer koleksiyonlar - herkes okuyabilir ve yazabilir
+    match /advertisements/{document=**} {
+      allow read, write: if true;
+    }
+    
+    match /reviews/{document=**} {
+      allow read, write: if true;
+    }
+    
+    match /notifications/{document=**} {
+      allow read, write: if true;
+    }
+    
+    match /complaints/{document=**} {
+      allow read, write: if true;
+    }
+  }
+} 

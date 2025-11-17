@@ -1,0 +1,39 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#34d399;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#10b981;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Ana daire arka plan -->
+  <circle cx="256" cy="256" r="240" fill="url(#gradient)" stroke="#065f46" stroke-width="4"/>
+  
+  <!-- Tabak -->
+  <circle cx="256" cy="280" r="120" fill="#ffffff" stroke="#374151" stroke-width="2"/>
+  
+  <!-- Yemek (Hamburger benzeri) -->
+  <ellipse cx="256" cy="260" rx="60" ry="25" fill="#dc2626"/>
+  <ellipse cx="256" cy="270" rx="55" ry="8" fill="#16a34a"/>
+  <ellipse cx="256" cy="280" rx="65" ry="20" fill="#eab308"/>
+  <ellipse cx="256" cy="295" rx="70" ry="15" fill="#dc2626"/>
+  
+  <!-- Çatal */
+  <rect x="180" y="200" width="4" height="80" fill="#374151"/>
+  <rect x="175" y="195" width="14" height="8" fill="#374151"/>
+  <rect x="175" y="205" width="3" height="20" fill="#374151"/>
+  <rect x="182" y="205" width="3" height="20" fill="#374151"/>
+  <rect x="189" y="205" width="3" height="20" fill="#374151"/>
+  
+  <!-- Kaşık -->
+  <ellipse cx="340" cy="205" rx="8" ry="12" fill="#374151"/>
+  <rect x="338" y="215" width="4" height="65" fill="#374151"/>
+  
+  <!-- Logo metni -->
+  <text x="256" y="420" font-family="Arial, sans-serif" font-size="48" font-weight="bold" text-anchor="middle" fill="#065f46">
+    NeYisek
+  </text>
+  <text x="256" y="450" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#374151">
+    .com
+  </text>
+</svg> 

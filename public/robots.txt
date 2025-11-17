@@ -1,0 +1,25 @@
+# *
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /debug/
+Disallow: /test-
+Disallow: /restaurant-login
+Disallow: /restaurant-apply
+Disallow: /register
+Disallow: /profile
+Disallow: /account/
+Disallow: /orders/
+Disallow: /cart
+Disallow: /location
+Disallow: /guest-profile
+Disallow: /_not-found
+Disallow: /404
+Disallow: /500
+
+# Host
+Host: https://www.neyisek.com
+
+# Sitemaps
+Sitemap: https://www.neyisek.com/sitemap.xml
