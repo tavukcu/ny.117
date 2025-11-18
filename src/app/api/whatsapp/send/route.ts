@@ -1,17 +1,22 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { WhatsAppService } from '@/services/whatsappService';
+import { OrderService } from '@/services/orderService';
+import { RestaurantService } from '@/services/restaurantService';
 
 const WABA_TOKEN = process.env.NEXT_PUBLIC_WABA_TOKEN;
 const WABA_PHONE_ID = process.env.NEXT_PUBLIC_WABA_PHONE_NUMBER_ID;
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const phone: string | undefined = body?.phone;
-    const message: string | undefined = body?.message;
+    const { type, data } = body as {
+      type: 'plain_message' | 'order_confirmation';
+      data: any;
+    };
 
-    if (!phone || !message) {
+    if (!type || !data) {
       return NextResponse.json(
-        { success: false, error: 'phone ve message alanları gereklidir' },
+        { success: false, error: 'type ve data alanları gereklidir' },
         { status: 400 }
       );
     }
@@ -23,297 +28,67 @@ export async function POST(request: Request) {
       );
     }
 
-    const payload = {
-      messaging_product: 'whatsapp',
-      to: phone,
-      type: 'text',
-      text: { body: message },
-    };
+    const whatsappService = new WhatsAppService(WABA_TOKEN, WABA_PHONE_ID);
+    const orderService = new OrderService();
+    const restaurantService = new RestaurantService();
 
-    const response = await fetch(
-      `https://graph.facebook.com/v20.0/${WABA_PHONE_ID}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${WABA_TOKEN}`,
-        },
-        body: JSON.stringify(payload),
+    if (type === 'plain_message') {
+      const { phone, message } = data as { phone?: string; message?: string };
+
+      if (!phone || !message) {
+        return NextResponse.json(
+          { success: false, error: 'phone ve message alanları gereklidir' },
+          { status: 400 }
+        );
       }
-    );
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      const errorMessage = data?.error?.message || 'WhatsApp API hatası';
-      return NextResponse.json(
-        { success: false, error: errorMessage, details: data },
-        { status: response.status }
-      );
+      const result = await whatsappService.sendTextMessage(phone, message);
+      return NextResponse.json({ success: true, data: result });
     }
 
-    return NextResponse.json({ success: true, data });
+    if (type === 'order_confirmation') {
+      const { orderId } = data as { orderId?: string };
+
+      if (!orderId) {
+        return NextResponse.json(
+          { success: false, error: 'orderId gereklidir' },
+          { status: 400 }
+        );
+      }
+
+      const order = await orderService.getOrderById(orderId);
+      if (!order) {
+        return NextResponse.json(
+          { success: false, error: 'Sipariş bulunamadı' },
+          { status: 404 }
+        );
+      }
+
+      const restaurant = await restaurantService.getRestaurantById(
+        order.restaurantId
+      );
+
+      const message = whatsappService.buildOrderConfirmationMessage(
+        order,
+        restaurant
+      );
+
+      const result = await whatsappService.sendTextMessage(order.customerPhone, message);
+      return NextResponse.json({ success: true, data: result });
+    }
+
+    return NextResponse.json(
+      { success: false, error: 'Desteklenmeyen type değeri' },
+      { status: 400 }
+    );
   } catch (error) {
     console.error('WhatsApp API isteği başarısız:', error);
     const message =
       error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu';
+
     return NextResponse.json(
       { success: false, error: message },
       { status: 500 }
     );
   }
 }
-import { NextRequest, NextResponse } from 'next/server';
-import { WhatsAppService } from '@/services/whatsappService';
-import { OrderService } from '@/services/orderService';
-import { RestaurantService } from '@/services/restaurantService';
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { type, data } = body;
-
-    switch (type) {
-      case 'new_order':
-        return await handleNewOrder(data);
-      
-      case 'status_update':
-        return await handleStatusUpdate(data);
-      
-      case 'cancellation':
-        return await handleCancellation(data);
-      
-      case 'emergency':
-        return await handleEmergency(data);
-      
-      case 'custom':
-        return await handleCustomMessage(data);
-      
-      default:
-        return NextResponse.json({ error: 'Invalid message type' }, { status: 400 });
-    }
-  } catch (error) {
-    console.error('WhatsApp mesaj gönderme hatası:', error);
-    return NextResponse.json({ error: 'Failed to send WhatsApp message' }, { status: 500 });
-  }
-}
-
-// Yeni sipariş bildirimi
-async function handleNewOrder(data: any) {
-  try {
-    const { orderId, restaurantId } = data;
-    
-    // Sipariş bilgilerini al
-    const order = await OrderService.getOrder(orderId);
-    if (!order) {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-    }
-
-    // Restoran bilgilerini al
-    const restaurant = await RestaurantService.getRestaurant(restaurantId);
-    if (!restaurant) {
-      return NextResponse.json({ error: 'Restaurant not found' }, { status: 404 });
-    }
-
-    // Restoran telefon numarasını formatla
-    const formattedPhone = WhatsAppService.formatPhoneNumber(restaurant.phoneNumber);
-    
-    // WhatsApp bildirim verilerini hazırla
-    const notificationData = {
-      orderId: order.id,
-      restaurantId: restaurant.id,
-      customerName: order.user.displayName,
-      customerPhone: order.user.phoneNumber,
-      totalAmount: order.total,
-      items: order.items.map(item => ({
-        name: item.product.name,
-        quantity: item.quantity,
-        price: item.price
-      })),
-      deliveryAddress: order.deliveryAddress ? 
-        `${order.deliveryAddress.street}, ${order.deliveryAddress.district}, ${order.deliveryAddress.city}` : 
-        undefined,
-      estimatedTime: order.estimatedDeliveryTime ? 
-        Math.ceil((order.estimatedDeliveryTime.getTime() - Date.now()) / 60000) : 
-        undefined,
-      specialInstructions: order.specialInstructions
-    };
-
-    // WhatsApp mesajını gönder
-    const success = await WhatsAppService.sendNewOrderNotification({
-      ...notificationData,
-      restaurantPhone: formattedPhone
-    });
-
-    if (success) {
-      return NextResponse.json({ 
-        success: true, 
-        message: 'WhatsApp notification sent successfully' 
-      });
-    } else {
-      return NextResponse.json({ 
-        error: 'Failed to send WhatsApp notification' 
-      }, { status: 500 });
-    }
-  } catch (error) {
-    console.error('Yeni sipariş WhatsApp bildirimi hatası:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-// Durum güncelleme bildirimi
-async function handleStatusUpdate(data: any) {
-  try {
-    const { orderId, status, restaurantId, estimatedTime } = data;
-    
-    // Sipariş bilgilerini al
-    const order = await OrderService.getOrder(orderId);
-    if (!order) {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-    }
-
-    // Restoran bilgilerini al
-    const restaurant = await RestaurantService.getRestaurant(restaurantId);
-    if (!restaurant) {
-      return NextResponse.json({ error: 'Restaurant not found' }, { status: 404 });
-    }
-
-    // Restoran telefon numarasını formatla
-    const formattedPhone = WhatsAppService.formatPhoneNumber(restaurant.phoneNumber);
-    
-    // WhatsApp mesajını gönder
-    const success = await WhatsAppService.sendOrderStatusUpdate(
-      formattedPhone,
-      orderId,
-      status,
-      order.user.displayName,
-      estimatedTime
-    );
-
-    if (success) {
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Status update notification sent successfully' 
-      });
-    } else {
-      return NextResponse.json({ 
-        error: 'Failed to send status update notification' 
-      }, { status: 500 });
-    }
-  } catch (error) {
-    console.error('Durum güncelleme WhatsApp bildirimi hatası:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-// İptal bildirimi
-async function handleCancellation(data: any) {
-  try {
-    const { orderId, restaurantId, reason } = data;
-    
-    // Sipariş bilgilerini al
-    const order = await OrderService.getOrder(orderId);
-    if (!order) {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-    }
-
-    // Restoran bilgilerini al
-    const restaurant = await RestaurantService.getRestaurant(restaurantId);
-    if (!restaurant) {
-      return NextResponse.json({ error: 'Restaurant not found' }, { status: 404 });
-    }
-
-    // Restoran telefon numarasını formatla
-    const formattedPhone = WhatsAppService.formatPhoneNumber(restaurant.phoneNumber);
-    
-    // WhatsApp mesajını gönder
-    const success = await WhatsAppService.sendOrderCancellation(
-      formattedPhone,
-      orderId,
-      order.user.displayName,
-      reason
-    );
-
-    if (success) {
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Cancellation notification sent successfully' 
-      });
-    } else {
-      return NextResponse.json({ 
-        error: 'Failed to send cancellation notification' 
-      }, { status: 500 });
-    }
-  } catch (error) {
-    console.error('İptal WhatsApp bildirimi hatası:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-// Acil durum bildirimi
-async function handleEmergency(data: any) {
-  try {
-    const { restaurantId, message, orderId } = data;
-    
-    // Restoran bilgilerini al
-    const restaurant = await RestaurantService.getRestaurant(restaurantId);
-    if (!restaurant) {
-      return NextResponse.json({ error: 'Restaurant not found' }, { status: 404 });
-    }
-
-    // Restoran telefon numarasını formatla
-    const formattedPhone = WhatsAppService.formatPhoneNumber(restaurant.phoneNumber);
-    
-    // WhatsApp mesajını gönder
-    const success = await WhatsAppService.sendEmergencyNotification(
-      formattedPhone,
-      message,
-      orderId
-    );
-
-    if (success) {
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Emergency notification sent successfully' 
-      });
-    } else {
-      return NextResponse.json({ 
-        error: 'Failed to send emergency notification' 
-      }, { status: 500 });
-    }
-  } catch (error) {
-    console.error('Acil durum WhatsApp bildirimi hatası:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-// Özel mesaj
-async function handleCustomMessage(data: any) {
-  try {
-    const { phoneNumber, message, buttons } = data;
-    
-    // Telefon numarasını formatla
-    const formattedPhone = WhatsAppService.formatPhoneNumber(phoneNumber);
-    
-    // WhatsApp mesajını gönder
-    const success = await WhatsAppService.sendCustomMessage(
-      formattedPhone,
-      message,
-      buttons
-    );
-
-    if (success) {
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Custom message sent successfully' 
-      });
-    } else {
-      return NextResponse.json({ 
-        error: 'Failed to send custom message' 
-      }, { status: 500 });
-    }
-  } catch (error) {
-    console.error('Özel WhatsApp mesajı hatası:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-} 
