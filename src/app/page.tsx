@@ -351,6 +351,7 @@ export default function HomePage() {
 
   return (
     <>
+      <main>
       {/* Mobile Layout */}
       <section className="md:hidden pb-24 bg-gray-50">
         <header className="sticky top-0 z-30 bg-white shadow-sm px-4 py-3 flex items-center justify-between">
@@ -489,7 +490,7 @@ export default function HomePage() {
       </section>
 
       {/* Desktop Layout */}
-      <main className="hidden md:block min-h-screen bg-gradient-to-br from-gray-50 via-white to-green-50/30">
+      <div className="hidden md:block min-h-screen bg-gradient-to-br from-gray-50 via-white to-green-50/30">
       <Header />
       
       {/* Ana Layout - Sol Filtreleme + Sağ İçerik */}
@@ -922,11 +923,11 @@ export default function HomePage() {
                   <div className="p-4 flex flex-col gap-3">
                     <div>
                       <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-green-600 transition-colors duration-200">
-                        {restaurant.name}
-                      </h3>
+                      {restaurant.name}
+                    </h3>
                       <p className="text-xs text-gray-500 mb-2 line-clamp-1">
-                        {restaurant.cuisineType || 'Lezzetli Yemekler'}
-                      </p>
+                        {restaurant.address.district || 'Lezzetli Yemekler'}
+                    </p>
                     </div>
                     
                     {/* Puan ve Teslimat Süresi */}
@@ -952,7 +953,7 @@ export default function HomePage() {
                         <span className="text-xs font-medium">{restaurant.estimatedDeliveryTime || 30}-{restaurant.estimatedDeliveryTime ? restaurant.estimatedDeliveryTime + 10 : 40} dk</span>
                       </div>
                     </div>
-                    
+
                     {/* Min. Sepet */}
                     {restaurant.minimumOrderAmount && (
                       <div className="text-xs text-gray-500">
@@ -1239,8 +1240,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-        </div>
       </div>
       
       {/* Footer - tam genişlik */}
@@ -1263,7 +1262,6 @@ export default function HomePage() {
       {/* Popup Advertisement */}
       <AdvertisementBanner position="popup" />
     </main>
-      </main>
 
       <MobileBottomNav active="home" />
     </>

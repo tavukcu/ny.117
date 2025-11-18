@@ -755,7 +755,7 @@ export default function CartPage() {
                   <span>Teslimat Ücreti</span>
                   <span>{deliveryFee === 0 ? 'Ücretsiz' : `₺${deliveryFee.toFixed(2)}`}</span>
                 </div>
-                <div className="border-t pt-3 flex justify-between text-base font-semibold text-gray-900">
+                <div className="border-t pt-3 flex justify_between text-base font-semibold text-gray-900">
                   <span>Toplam</span>
                   <span>₺{total.toFixed(2)}</span>
                 </div>
@@ -1112,6 +1112,7 @@ export default function CartPage() {
             </div>
           </div>
         )}
+      </div>
       </div>
 
       <MobileBottomNav active="cart" />
