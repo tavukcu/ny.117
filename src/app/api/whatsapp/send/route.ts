@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { WhatsAppService } from '@/services/whatsappService';
-import { OrderService } from '@/services/orderService';
-import { RestaurantService } from '@/services/restaurantService';
 
 const WABA_TOKEN = process.env.NEXT_PUBLIC_WABA_TOKEN;
 const WABA_PHONE_ID = process.env.NEXT_PUBLIC_WABA_PHONE_NUMBER_ID;
@@ -9,14 +6,24 @@ const WABA_PHONE_ID = process.env.NEXT_PUBLIC_WABA_PHONE_NUMBER_ID;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { type, data } = body as {
-      type: 'plain_message' | 'order_confirmation';
-      data: any;
-    };
 
-    if (!type || !data) {
+    // İstek tipine göre ayırmak istersen ileride kullanırız
+    const { type, data } = body;
+
+    // Şimdilik sadece düz mesajı destekleyelim
+    if (type !== 'plain_message') {
       return NextResponse.json(
-        { success: false, error: 'type ve data alanları gereklidir' },
+        { success: false, error: 'Desteklenmeyen istek tipi' },
+        { status: 400 }
+      );
+    }
+
+    const phone: string | undefined = data?.phone;
+    const message: string | undefined = data?.message;
+
+    if (!phone || !message) {
+      return NextResponse.json(
+        { success: false, error: 'phone ve message alanları gereklidir' },
         { status: 400 }
       );
     }
@@ -28,59 +35,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const whatsappService = new WhatsAppService(WABA_TOKEN, WABA_PHONE_ID);
-    const orderService = new OrderService();
-    const restaurantService = new RestaurantService();
+    const payload = {
+      messaging_product: 'whatsapp',
+      to: phone,
+      type: 'text',
+      text: { body: message },
+    };
 
-    if (type === 'plain_message') {
-      const { phone, message } = data as { phone?: string; message?: string };
-
-      if (!phone || !message) {
-        return NextResponse.json(
-          { success: false, error: 'phone ve message alanları gereklidir' },
-          { status: 400 }
-        );
+    const response = await fetch(
+      `https://graph.facebook.com/v20.0/${WABA_PHONE_ID}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${WABA_TOKEN}`,
+        },
+        body: JSON.stringify(payload),
       }
-
-      const result = await whatsappService.sendTextMessage(phone, message);
-      return NextResponse.json({ success: true, data: result });
-    }
-
-    if (type === 'order_confirmation') {
-      const { orderId } = data as { orderId?: string };
-
-      if (!orderId) {
-        return NextResponse.json(
-          { success: false, error: 'orderId gereklidir' },
-          { status: 400 }
-        );
-      }
-
-      const order = await orderService.getOrderById(orderId);
-      if (!order) {
-        return NextResponse.json(
-          { success: false, error: 'Sipariş bulunamadı' },
-          { status: 404 }
-        );
-      }
-
-      const restaurant = await restaurantService.getRestaurantById(
-        order.restaurantId
-      );
-
-      const message = whatsappService.buildOrderConfirmationMessage(
-        order,
-        restaurant
-      );
-
-      const result = await whatsappService.sendTextMessage(order.customerPhone, message);
-      return NextResponse.json({ success: true, data: result });
-    }
-
-    return NextResponse.json(
-      { success: false, error: 'Desteklenmeyen type değeri' },
-      { status: 400 }
     );
+
+    const dataResponse = await response.json();
+
+    if (!response.ok) {
+      const errorMessage =
+        dataResponse?.error?.message || 'WhatsApp API hatası';
+
+      return NextResponse.json(
+        { success: false, error: errorMessage, details: dataResponse },
+        { status: response.status }
+      );
+    }
+
+    return NextResponse.json({ success: true, data: dataResponse });
   } catch (error) {
     console.error('WhatsApp API isteği başarısız:', error);
     const message =
