@@ -1,8 +1,11 @@
 import { Order, OrderStatus } from '@/types';
 import { OrderService } from './orderService';
 
-function buildMapsLink(address: string): string {
+function buildMapsLink(address: string, provider: 'google' | 'apple' = 'google'): string {
   const encoded = encodeURIComponent(address);
+  if (provider === 'apple') {
+    return `https://maps.apple.com/?q=${encoded}`;
+  }
   return `https://www.google.com/maps?q=${encoded}`;
 }
 
@@ -138,7 +141,8 @@ Müşteri otomatik olarak bilgilendirildi.
       .join('\n');
 
     const addressText = data.deliveryAddress || 'Adres belirtilmemiş';
-    const mapsUrl = buildMapsLink(addressText);
+    const googleMapsUrl = buildMapsLink(addressText, 'google');
+    const appleMapsUrl = buildMapsLink(addressText, 'apple');
 
     const text = `
 🔴 *YENİ SİPARİŞ ALINDI!*
@@ -153,7 +157,8 @@ ${itemsList}
 
 📍 *Teslimat Adresi:*
 ${addressText}
-[Haritada aç](${mapsUrl})
+[Google Haritalar'da aç](${googleMapsUrl})
+[Apple Haritalar'da aç](${appleMapsUrl})
 
 ⏱ *Tahmini Süre:* ${data.estimatedTime ? `${data.estimatedTime} dakika` : 'Belirtilmedi'}
 ${data.specialInstructions ? `\n📝 *Özel Talimatlar:*\n${data.specialInstructions}` : ''}
