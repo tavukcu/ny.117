@@ -34,7 +34,10 @@ import {
   Target,
   Filter,
   SlidersHorizontal,
-  Search
+  Search,
+  ShoppingCart,
+  User,
+  Bell
 } from 'lucide-react';
 import Link from 'next/link';
 import { CategoryService } from '@/services/categoryService';
@@ -48,6 +51,8 @@ import OrderButton from '@/components/OrderButton';
 import Badge from '@/components/ui/Badge';
 import StatCard from '@/components/ui/StatCard';
 import CategoryPill from '@/components/ui/CategoryPill';
+import MobileBottomNav from '@/components/layout/MobileBottomNav';
+import { motion } from 'framer-motion';
 
 // Ana sayfa komponenti
 export default function HomePage() {
@@ -66,6 +71,8 @@ export default function HomePage() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [showNearbySection, setShowNearbySection] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [mobileCategory, setMobileCategory] = useState<string>('all');
+  const [mobileSearch, setMobileSearch] = useState('');
 
   // Firebase Analytics ve Performance Monitoring
   useEffect(() => {
@@ -327,8 +334,162 @@ export default function HomePage() {
     });
   };
 
+  const mobileFeaturedRestaurants = restaurants.slice(0, 6);
+  const displayCategories = categories.slice(0, 12);
+  const normalizedSearch = mobileSearch.toLowerCase();
+  const filteredMobileRestaurants = restaurants.filter((restaurant) => {
+    const matchesCategory =
+      mobileCategory === 'all' ||
+      restaurant.categoryIds?.includes(mobileCategory);
+    const matchesSearch =
+      !normalizedSearch ||
+      restaurant.name.toLowerCase().includes(normalizedSearch) ||
+      restaurant.description?.toLowerCase().includes(normalizedSearch);
+    return matchesCategory && matchesSearch;
+  });
+  const locationLabel = userLocation?.address || 'Konum seçilmedi';
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-green-50/30">
+    <>
+      {/* Mobile Layout */}
+      <section className="md:hidden pb-24 bg-gray-50">
+        <header className="sticky top-0 z-30 bg-white shadow-sm px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-10 rounded-xl bg-green-100 flex items-center justify-center text-green-600 font-bold">
+              NY
+            </div>
+            <div className="flex flex-col">
+              <span className="text-lg font-bold text-gray-900">NEYİSEK</span>
+              <span className="text-xs text-gray-500">lezzetli seçimler</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-gray-600">
+            <button aria-label="Bildirimler" className="p-2 rounded-full bg-gray-100">
+              <Bell className="h-5 w-5" />
+            </button>
+            <button aria-label="Sepetim" className="p-2 rounded-full bg-gray-100">
+              <ShoppingCart className="h-5 w-5" />
+            </button>
+            <button aria-label="Profil" className="p-2 rounded-full bg-gray-100">
+              <User className="h-5 w-5" />
+            </button>
+          </div>
+        </header>
+
+        <div className="px-4 py-4 space-y-4">
+          <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-500">Teslimat konumu</p>
+              <p className="text-sm font-semibold text-gray-900 line-clamp-1">{locationLabel}</p>
+            </div>
+            <button
+              onClick={getUserLocation}
+              className="text-green-600 text-sm font-semibold underline underline-offset-4"
+            >
+              Konumu Değiştir
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2">
+            <Search className="h-5 w-5 text-gray-500" />
+            <input
+              type="text"
+              value={mobileSearch}
+              onChange={(e) => setMobileSearch(e.target.value)}
+              placeholder="Ne yesek?"
+              className="flex-1 bg-transparent text-sm focus:outline-none"
+            />
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            <button
+              onClick={() => setMobileCategory('all')}
+              className={`px-4 py-2 rounded-full border text-sm whitespace-nowrap ${
+                mobileCategory === 'all'
+                  ? 'bg-green-600 text-white border-green-600'
+                  : 'bg-white text-gray-700 border-gray-200'
+              }`}
+            >
+              Tümü
+            </button>
+            {displayCategories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => setMobileCategory(category.id)}
+                className={`px-4 py-2 rounded-full border text-sm whitespace-nowrap ${
+                  mobileCategory === category.id
+                    ? 'bg-green-600 text-white border-green-600'
+                    : 'bg-white text-gray-700 border-gray-200'
+                }`}
+              >
+                {category.name}
+              </button>
+            ))}
+          </div>
+
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">Sana özel fırsatlar</h2>
+              <Link href="/restaurants" className="text-sm text-green-600 font-medium">
+                Tümünü gör
+              </Link>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {mobileFeaturedRestaurants.map((restaurant) => (
+                <motion.div
+                  key={restaurant.id}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-64 flex-shrink-0 bg-white rounded-2xl shadow-md overflow-hidden"
+                >
+                  <div className="h-32 bg-gradient-to-br from-green-100 to-yellow-100" />
+                  <div className="p-4 space-y-1">
+                    <h3 className="font-semibold text-gray-900">{restaurant.name}</h3>
+                    <p className="text-sm text-gray-500 line-clamp-1">
+                      {restaurant.address.district}, {restaurant.address.city}
+                    </p>
+                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                      <span>⭐ {restaurant.rating ?? '4.9'}</span>
+                      <span>{restaurant.estimatedDeliveryTime} dk</span>
+                      <span>Min ₺{restaurant.minimumOrderAmount}</span>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-base font-semibold text-gray-900">Restoranlar</h2>
+            <div className="space-y-3">
+              {filteredMobileRestaurants.map((restaurant) => (
+                <motion.div
+                  key={restaurant.id}
+                  whileTap={{ scale: 0.99 }}
+                  className="bg-white rounded-2xl shadow-sm p-3 flex items-center gap-3"
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-100 to-yellow-100 flex items-center justify-center text-green-600 font-semibold">
+                    {restaurant.name.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900">{restaurant.name}</h3>
+                    <p className="text-xs text-gray-500">
+                      {restaurant.address.district}, {restaurant.address.city}
+                    </p>
+                    <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                      <span>⭐ {restaurant.rating ?? '4.9'}</span>
+                      <span>{restaurant.estimatedDeliveryTime} dk</span>
+                      <span>Min ₺{restaurant.minimumOrderAmount}</span>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </section>
+
+      {/* Desktop Layout */}
+      <main className="hidden md:block min-h-screen bg-gradient-to-br from-gray-50 via-white to-green-50/30">
       <Header />
       
       {/* Ana Layout - Sol Filtreleme + Sağ İçerik */}
@@ -1102,5 +1263,9 @@ export default function HomePage() {
       {/* Popup Advertisement */}
       <AdvertisementBanner position="popup" />
     </main>
+      </main>
+
+      <MobileBottomNav active="home" />
+    </>
   );
 } 

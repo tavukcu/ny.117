@@ -28,6 +28,8 @@ import { toast } from 'react-hot-toast';
 import RestaurantStatusBadge from '@/components/RestaurantStatusBadge';
 import OrderButton from '@/components/OrderButton';
 import ImageWithFallback from '@/components/ui/ImageWithFallback';
+import MobileBottomNav from '@/components/layout/MobileBottomNav';
+import { motion } from 'framer-motion';
 
 export default function RestaurantDetailPage() {
   const params = useParams();
@@ -113,6 +115,8 @@ export default function RestaurantDetailPage() {
     return matchesCategory && matchesSearch;
   });
 
+  const mobileCategories = categories.slice(0, 12);
+
 
 
   if (isLoading) {
@@ -148,11 +152,130 @@ export default function RestaurantDetailPage() {
   }
 
   return (
-    <main>
-      <Header />
-      
-      {/* Restaurant Header */}
-      <section className="bg-white border-b page-content">
+    <>
+      {/* Mobile Layout */}
+      <section className="md:hidden pb-32 bg-gray-50">
+        <div className="px-4 py-4 space-y-4">
+          <div className="bg-white rounded-3xl shadow-md p-4 space-y-3">
+            <div className="flex justify-between items-start gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-400">{restaurant.address.city}</p>
+                <h1 className="text-xl font-bold text-gray-900">{restaurant.name}</h1>
+                <p className="text-xs text-gray-500 line-clamp-2">{restaurant.description}</p>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-green-50 text-green-700 text-xs font-semibold">
+                {restaurant.isOpen ? 'Açık' : 'Kapalı'}
+              </span>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-gray-600">
+              <span>⭐ {restaurant.rating ?? '4.9'}</span>
+              <span>{restaurant.estimatedDeliveryTime} dk</span>
+              <span>Min ₺{restaurant.minimumOrderAmount}</span>
+            </div>
+            <div className="flex gap-2 text-xs text-gray-500">
+              <MapPin className="h-4 w-4 text-green-500" />
+              <span className="line-clamp-2">
+                {restaurant.address.district}, {restaurant.address.city}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <div className="flex flex-1 items-center gap-2 bg-white rounded-full px-4 py-2 shadow-sm">
+              <Search className="h-4 w-4 text-gray-500" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Menüde ara..."
+                className="flex-1 text-sm bg-transparent focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            <button
+              onClick={() => setSelectedCategory('')}
+              className={`px-4 py-2 rounded-full border text-sm whitespace-nowrap ${
+                selectedCategory === ''
+                  ? 'bg-green-600 text-white border-green-600'
+                  : 'bg-white text-gray-700 border-gray-200'
+              }`}
+            >
+              Tümü
+            </button>
+            {mobileCategories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => setSelectedCategory(category.id)}
+                className={`px-4 py-2 rounded-full border text-sm whitespace-nowrap ${
+                  selectedCategory === category.id
+                    ? 'bg-green-600 text-white border-green-600'
+                    : 'bg-white text-gray-700 border-gray-200'
+                }`}
+              >
+                {category.name}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-3">
+            {filteredProducts.map((product) => (
+              <motion.div
+                key={product.id}
+                whileTap={{ scale: 0.98 }}
+                className="bg-white rounded-2xl p-4 shadow-sm flex gap-3"
+              >
+                <div className="flex-1 space-y-2">
+                  <h3 className="text-base font-semibold text-gray-900">{product.name}</h3>
+                  <p className="text-xs text-gray-500 line-clamp-2">{product.description}</p>
+                  <p className="text-lg font-semibold text-gray-900">₺{product.price}</p>
+                  <button
+                    onClick={() => addToCart(product)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-full text-sm font-semibold w-max"
+                  >
+                    + Sepete Ekle
+                  </button>
+                </div>
+                <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-green-100 to-yellow-100 flex-shrink-0 overflow-hidden">
+                  {product.images?.length ? (
+                    <ImageWithFallback
+                      src={product.images[0].url}
+                      alt={product.name}
+                      width={96}
+                      height={96}
+                      className="w-full h-full object-cover"
+                      fallbackSrc="/images/restaurant-placeholder.svg"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-green-600">
+                      <Package className="h-6 w-6" />
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        {cartItemCount > 0 && (
+          <div className="fixed bottom-16 left-4 right-4 z-40">
+            <button
+              onClick={() => router.push('/cart')}
+              className="w-full bg-green-600 text-white rounded-2xl py-3 px-4 flex items-center justify-between shadow-lg"
+            >
+              <span>{cartItemCount} ürün · ₺{cartTotal.toFixed(2)}</span>
+              <span className="font-semibold">Sepete git →</span>
+            </button>
+          </div>
+        )}
+      </section>
+
+      <main className="hidden md:block">
+        <Header />
+        
+        {/* Restaurant Header */}
+        <section className="bg-white border-b page-content">
         <div className="container-responsive py-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Restaurant Info */}
@@ -592,19 +715,21 @@ export default function RestaurantDetailPage() {
         </div>
       </section>
 
-      {/* Floating Cart Button (Mobile) */}
+      {/* Floating Cart Button (Desktop) */}
       {cartItemCount > 0 && (
-        <div className="fixed bottom-4 right-4 xl:hidden z-50">
-          <button className="bg-primary-600 text-white p-4 rounded-full shadow-lg hover:bg-primary-700 transition-colors">
-            <div className="relative">
-              <ShoppingCart className="h-6 w-6" />
-              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {cartItemCount}
-              </span>
-            </div>
+        <div className="hidden md:block fixed bottom-6 right-6 z-40">
+          <button
+            onClick={() => router.push('/cart')}
+            className="bg-green-600 text-white px-5 py-3 rounded-full shadow-lg flex items-center gap-2 hover:bg-green-700"
+          >
+            <ShoppingCart className="h-5 w-5" />
+            <span>{cartItemCount} ürün · ₺{cartTotal.toFixed(2)}</span>
           </button>
         </div>
       )}
     </main>
+
+      <MobileBottomNav active="restaurants" />
+    </>
   );
 } 

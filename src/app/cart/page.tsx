@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import MobileBottomNav from '@/components/layout/MobileBottomNav';
 
 export default function CartPage() {
   const router = useRouter();
@@ -294,6 +295,8 @@ export default function CartPage() {
       setIsSubmitting(false);
     }
   };
+
+  const handlePrimarySubmit = user ? handleUserOrderSubmit : handleGuestOrderSubmit;
 
   if (!isClient) {
     return (
@@ -668,7 +671,108 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <>
+      <section className="md:hidden pb-32 bg-gray-50 min-h-screen">
+        <div className="px-4 py-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-semibold text-gray-900">Sepetim</h1>
+            <button onClick={() => router.push('/')} className="text-sm text-green-600 font-medium">
+              Menüye dön
+            </button>
+          </div>
+
+          {!hasItems ? (
+            <div className="bg-white rounded-3xl p-8 text-center shadow-sm">
+              <ShoppingCart className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Sepetin boş</h2>
+              <p className="text-sm text-gray-500 mb-4">Lezzetli restoranları keşfetmeye başla.</p>
+              <button
+                onClick={() => router.push('/')}
+                className="w-full bg-green-600 text-white py-3 rounded-full font-semibold"
+              >
+                Restoranlara Git
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {cartItems.map((item) => (
+                  <div key={item.productId} className="bg-white rounded-2xl p-4 shadow-sm flex gap-3">
+                    <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center">
+                      {item.product.imageUrl ? (
+                        <ImageWithFallback
+                          src={item.product.imageUrl}
+                          alt={item.product.name}
+                          width={64}
+                          height={64}
+                          className="w-full h-full object-cover rounded-2xl"
+                        />
+                      ) : (
+                        <span className="text-sm text-gray-500">Görsel</span>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-900">{item.product.name}</h3>
+                          <p className="text-xs text-gray-500">{item.product.description || 'Popüler seçim'}</p>
+                        </div>
+                        <button onClick={() => removeFromCart(item.productId)} className="text-gray-400">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                            className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </button>
+                          <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
+                          <button
+                            onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                            className="w-8 h-8 rounded-full bg-green-600 text-white flex items-center justify-center"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-900">
+                          ₺{((item.price || item.product.price) * item.quantity).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-white rounded-3xl p-4 shadow-sm space-y-3">
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>Ara Toplam</span>
+                  <span>₺{subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>Teslimat Ücreti</span>
+                  <span>{deliveryFee === 0 ? 'Ücretsiz' : `₺${deliveryFee.toFixed(2)}`}</span>
+                </div>
+                <div className="border-t pt-3 flex justify-between text-base font-semibold text-gray-900">
+                  <span>Toplam</span>
+                  <span>₺{total.toFixed(2)}</span>
+                </div>
+                <button
+                  onClick={handlePrimarySubmit}
+                  disabled={isSubmitting}
+                  className="w-full bg-green-600 text-white py-3 rounded-full font-semibold"
+                >
+                  {isSubmitting ? 'İşleniyor...' : 'Siparişi Onayla'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
+      <div className="hidden md:block min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Header />
       
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 page-content">
@@ -1009,6 +1113,8 @@ export default function CartPage() {
           </div>
         )}
       </div>
-    </div>
+
+      <MobileBottomNav active="cart" />
+    </>
   );
 } 

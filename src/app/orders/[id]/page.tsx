@@ -29,6 +29,30 @@ import OrderTrackingMap from '@/components/OrderTrackingMap';
 import OrderStatusTimeline from '@/components/OrderStatusTimeline';
 import DriverInfo from '@/components/DriverInfo';
 import { sendOrderStatus } from '@/lib/whatsapp';
+import MobileBottomNav from '@/components/layout/MobileBottomNav';
+import { motion } from 'framer-motion';
+
+const STATUS_FLOW: OrderStatus[] = [
+  OrderStatus.PENDING,
+  OrderStatus.CONFIRMED,
+  OrderStatus.PREPARING,
+  OrderStatus.DELIVERING,
+  OrderStatus.DELIVERED,
+];
+
+const STATUS_LABELS: Record<OrderStatus, string> = {
+  [OrderStatus.PENDING]: 'Sipariş Alındı',
+  [OrderStatus.CONFIRMED]: 'Restoran Onayladı',
+  [OrderStatus.PREPARING]: 'Hazırlanıyor',
+  [OrderStatus.READY]: 'Hazır',
+  [OrderStatus.ASSIGNED]: 'Kurye Atandı',
+  [OrderStatus.PICKED_UP]: 'Kurye Aldı',
+  [OrderStatus.DELIVERING]: 'Yola Çıktı',
+  [OrderStatus.ARRIVED]: 'Adrese Vardı',
+  [OrderStatus.DELIVERED]: 'Teslim Edildi',
+  [OrderStatus.CANCELLED]: 'İptal Edildi',
+  [OrderStatus.REFUNDED]: 'İade Edildi'
+};
 
 export default function OrderTrackingPage() {
   const params = useParams();
@@ -114,21 +138,7 @@ export default function OrderTrackingPage() {
 
         // Önceki durumla karşılaştır ve bildirim göster
         if (order && order.status !== orderData.status) {
-          const statusLabels: Record<OrderStatus, string> = {
-            [OrderStatus.PENDING]: 'Onay Bekliyor',
-            [OrderStatus.CONFIRMED]: 'Sipariş Onaylandı',
-            [OrderStatus.PREPARING]: 'Hazırlanıyor',
-            [OrderStatus.READY]: 'Hazır',
-            [OrderStatus.ASSIGNED]: 'Kurye Atandı',
-            [OrderStatus.PICKED_UP]: 'Kurye Aldı',
-            [OrderStatus.DELIVERING]: 'Yolda',
-            [OrderStatus.ARRIVED]: 'Adrese Vardı',
-            [OrderStatus.DELIVERED]: 'Teslim Edildi',
-            [OrderStatus.CANCELLED]: 'İptal Edildi',
-            [OrderStatus.REFUNDED]: 'İade Edildi'
-          };
-          
-          const statusMessage = statusLabels[orderData.status] || orderData.status;
+          const statusMessage = STATUS_LABELS[orderData.status] || orderData.status;
           toast.success(`Sipariş durumu güncellendi: ${statusMessage}`);
 
           const phoneNumber =
@@ -212,6 +222,16 @@ export default function OrderTrackingPage() {
       toast.error('Arama başlatılamadı');
     }
   };
+
+  const mobileTimeline = STATUS_FLOW.map((step) => {
+    const currentIndex = order ? STATUS_FLOW.indexOf(order.status) : 0;
+    const stepIndex = STATUS_FLOW.indexOf(step);
+    return {
+      status: step,
+      label: STATUS_LABELS[step],
+      state: stepIndex < currentIndex ? 'done' : stepIndex === currentIndex ? 'active' : 'pending',
+    };
+  });
 
   const getStatusColor = (status: OrderStatus) => {
     const colors: Record<OrderStatus, string> = {
