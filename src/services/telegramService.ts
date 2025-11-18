@@ -1,6 +1,11 @@
 import { Order, OrderStatus } from '@/types';
 import { OrderService } from './orderService';
 
+function buildMapsLink(address: string): string {
+  const encoded = encodeURIComponent(address);
+  return `https://www.google.com/maps?q=${encoded}`;
+}
+
 export interface TelegramMessage {
   chat_id: string | number;
   text: string;
@@ -52,9 +57,9 @@ export class TelegramService {
         console.log('🔍 DEBUG - Sending admin message to:', adminChatId);
         await this.sendMessage({
           chat_id: adminChatId,
-          text: `🔴 ADMİN BİLDİRİMİ\n\n${message.text}`,
+          text: `🔴 *ADMİN BİLDİRİMİ*\n\n${message.text}`,
           reply_markup: message.reply_markup,
-          parse_mode: 'HTML'
+          parse_mode: message.parse_mode
         });
         console.log('✅ DEBUG - Admin message sent successfully');
       }
@@ -65,7 +70,7 @@ export class TelegramService {
           chat_id: restaurantChatId,
           text: message.text,
           reply_markup: message.reply_markup,
-          parse_mode: 'HTML'
+          parse_mode: message.parse_mode
         });
       }
 
@@ -127,46 +132,53 @@ Müşteri otomatik olarak bilgilendirildi.
   }
 
   // Yeni sipariş mesajı oluştur
-  private static createNewOrderMessage(data: TelegramNotificationData): { text: string; reply_markup: any } {
+  private static createNewOrderMessage(data: TelegramNotificationData): { text: string; reply_markup: any; parse_mode: 'Markdown' } {
     const itemsList = data.items
       .map(item => `• ${item.quantity}x ${item.name} - ₺${item.price.toFixed(2)}`)
       .join('\n');
 
+    const addressText = data.deliveryAddress || 'Adres belirtilmemiş';
+    const mapsUrl = buildMapsLink(addressText);
+
     const text = `
-🆕 <b>YENİ SİPARİŞ ALINDI!</b>
+🔴 *YENİ SİPARİŞ ALINDI!*
 
-📋 <b>Sipariş Detayları:</b>
-🆔 <b>Sipariş No:</b> #${data.orderId}
-👤 <b>Müşteri:</b> ${data.customerName}
-📞 <b>Telefon:</b> ${data.customerPhone}
-💰 <b>Toplam:</b> ₺${data.totalAmount.toFixed(2)}
+🪪 *Sipariş No:* \`${data.orderId}\`
+👤 *Müşteri:* ${data.customerName}
+📞 *Telefon:* ${data.customerPhone}
+💰 *Toplam:* ₺${data.totalAmount.toFixed(2)}
 
-🍽️ <b>Sipariş İçeriği:</b>
+🍽️ *Sipariş İçeriği:*
 ${itemsList}
 
-📍 <b>Teslimat Adresi:</b>
-${data.deliveryAddress || 'Belirtilmemiş'}
+📍 *Teslimat Adresi:*
+${addressText}
+[Haritada aç](${mapsUrl})
 
-${data.estimatedTime ? `⏱️ <b>Tahmini Süre:</b> ${data.estimatedTime} dakika\n` : ''}
-${data.specialInstructions ? `📝 <b>Özel Talimatlar:</b>\n${data.specialInstructions}\n` : ''}
-🚀 <b>Siparişi hazırlamaya başlayabilirsiniz!</b>
+⏱ *Tahmini Süre:* ${data.estimatedTime ? `${data.estimatedTime} dakika` : 'Belirtilmedi'}
+${data.specialInstructions ? `\n📝 *Özel Talimatlar:*\n${data.specialInstructions}` : ''}
+
+🚀 Siparişi hazırlamaya başlayabilirsiniz!
     `.trim();
+
+    const orderId = data.orderId;
 
     return {
       text,
+      parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
           [
-            { text: '✅ Onayla', callback_data: `order_confirm_${data.orderId}` },
-            { text: '❌ Reddet', callback_data: `order_reject_${data.orderId}` }
+            { text: '✅ Onayla', callback_data: `approve:${orderId}` },
+            { text: '❌ Reddet', callback_data: `reject:${orderId}` }
           ],
           [
-            { text: '👨‍🍳 Hazırlanıyor', callback_data: `order_preparing_${data.orderId}` },
-            { text: '🚚 Yolda', callback_data: `order_delivery_${data.orderId}` }
+            { text: '👨‍🍳 Hazırlanıyor', callback_data: `preparing:${orderId}` },
+            { text: '🚚 Yolda', callback_data: `on_the_way:${orderId}` }
           ],
           [
-            { text: '✅ Teslim Edildi', callback_data: `order_completed_${data.orderId}` },
-            { text: '📞 Müşteriyi Ara', callback_data: `call_customer_${data.orderId}` }
+            { text: '✅ Teslim Edildi', callback_data: `delivered:${orderId}` },
+            { text: '📞 Müşteriyi Ara', callback_data: `call:${orderId}` }
           ]
         ]
       }
@@ -265,6 +277,32 @@ ${data.specialInstructions ? `📝 <b>Özel Talimatlar:</b>\n${data.specialInstr
     }
   }
 
+  private static async handleCallAction(callbackQuery: any, orderId: string, chatId: number): Promise<{ success: boolean }> {
+    try {
+      const order = await this.getOrderForCall(orderId);
+
+      if (order && order.customerPhone) {
+        const phoneMessage = `📞 <b>Müşteri İletişim Bilgileri</b>\n\n👤 <b>Ad:</b> ${order.customerName}\n📱 <b>Telefon:</b> <a href="tel:${order.customerPhone}">${order.customerPhone}</a>\n📋 <b>Sipariş:</b> #${orderId}\n\n💡 <i>Telefon numarasına tıklayarak arama yapabilirsiniz.</i>`;
+
+        await this.sendMessage({
+          chat_id: chatId,
+          text: phoneMessage,
+          parse_mode: 'HTML'
+        });
+
+        await this.answerCallbackQuery(callbackQuery.id, '📞 Telefon numarası gönderildi!');
+      } else {
+        await this.answerCallbackQuery(callbackQuery.id, '❌ Müşteri telefonu bulunamadı!');
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Arama butonu hatası:', error);
+      await this.answerCallbackQuery(callbackQuery.id, '❌ Hata oluştu!');
+      return { success: false };
+    }
+  }
+
   // Sipariş durumu metni
   private static getStatusText(status: OrderStatus): string {
     const statusMap: Record<OrderStatus, string> = {
@@ -330,7 +368,59 @@ ${data.specialInstructions ? `📝 <b>Özel Talimatlar:</b>\n${data.specialInstr
 
       console.log('🎯 Telegram callback query:', data);
 
-      // Sipariş durumu güncelleme
+      // Yeni inline format (approve:orderId vb.)
+      if (typeof data === 'string' && data.includes(':')) {
+        const [action, orderId] = data.split(':');
+        if (!orderId) {
+          await this.answerCallbackQuery(callbackQuery.id, '❌ Geçersiz sipariş ID');
+          return { success: false };
+        }
+
+        if (action === 'call') {
+          return await this.handleCallAction(callbackQuery, orderId, chatId);
+        }
+
+        if (action === 'status_info') {
+          await this.answerCallbackQuery(callbackQuery.id, 'ℹ️ Bu adım zaten tamamlandı');
+          return { success: true };
+        }
+
+        const statusMap: Record<string, { status: OrderStatus; message: string }> = {
+          approve: { status: OrderStatus.CONFIRMED, message: '✅ Sipariş onaylandı' },
+          reject: { status: OrderStatus.CANCELLED, message: '❌ Sipariş reddedildi' },
+          preparing: { status: OrderStatus.PREPARING, message: '👨‍🍳 Sipariş hazırlanıyor' },
+          on_the_way: { status: OrderStatus.DELIVERING, message: '🚚 Sipariş yolda' },
+          delivered: { status: OrderStatus.DELIVERED, message: '✅ Sipariş teslim edildi' }
+        };
+
+        const mapped = statusMap[action];
+        if (!mapped) {
+          await this.answerCallbackQuery(callbackQuery.id, '❌ Bilinmeyen işlem');
+          return { success: false };
+        }
+
+        try {
+          const updatedBy = `telegram:${callbackQuery.from.id}`;
+          await this.updateOrderStatus(orderId, mapped.status, updatedBy);
+          await this.answerCallbackQuery(callbackQuery.id, mapped.message);
+          await this.editMessageReplyMarkup(chatId, messageId, this.getUpdatedKeyboard(orderId, mapped.status));
+          return { success: true, response: mapped.message };
+        } catch (error) {
+          console.error('❌ Sipariş durumu güncelleme hatası:', error);
+          const errorMessage = error instanceof Error && error.message.includes('not found')
+            ? '❌ Sipariş bulunamadı!'
+            : '❌ Sipariş durumu güncellenirken bir hata oluştu!';
+          await this.answerCallbackQuery(callbackQuery.id, errorMessage);
+          await this.sendMessage({
+            chat_id: chatId,
+            text: `⚠️ <b>Hata</b>\n\n${errorMessage}\n\n📋 <b>Sipariş ID:</b> #${orderId}\n🔄 <b>İşlem:</b> ${action}`,
+            parse_mode: 'HTML'
+          });
+          return { success: false, response: errorMessage };
+        }
+      }
+
+      // Eski format (order_confirm_x)
       if (data.startsWith('order_')) {
         const parts = data.split('_');
         console.log('🔍 Callback data parts:', parts);
@@ -411,30 +501,7 @@ ${data.specialInstructions ? `📝 <b>Özel Talimatlar:</b>\n${data.specialInstr
       // Müşteriyi arama
       if (data.startsWith('call_customer_')) {
         const orderId = data.replace('call_customer_', '');
-        
-        try {
-          // Sipariş bilgilerini al
-          const order = await this.getOrderForCall(orderId);
-          
-          if (order && order.customerPhone) {
-            const phoneMessage = `📞 <b>Müşteri İletişim Bilgileri</b>\n\n👤 <b>Ad:</b> ${order.customerName}\n📱 <b>Telefon:</b> <a href="tel:${order.customerPhone}">${order.customerPhone}</a>\n📋 <b>Sipariş:</b> #${orderId}\n\n💡 <i>Telefon numarasına tıklayarak arama yapabilirsiniz.</i>`;
-            
-            await this.sendMessage({
-              chat_id: chatId,
-              text: phoneMessage,
-              parse_mode: 'HTML'
-            });
-            
-            await this.answerCallbackQuery(callbackQuery.id, '📞 Telefon numarası gönderildi!');
-          } else {
-            await this.answerCallbackQuery(callbackQuery.id, '❌ Müşteri telefonu bulunamadı!');
-          }
-        } catch (error) {
-          console.error('❌ Arama butonu hatası:', error);
-          await this.answerCallbackQuery(callbackQuery.id, '❌ Hata oluştu!');
-        }
-        
-        return { success: true };
+        return await this.handleCallAction(callbackQuery, orderId, chatId);
       }
 
       return { success: true };
@@ -591,7 +658,7 @@ ${data.specialInstructions ? `📝 <b>Özel Talimatlar:</b>\n${data.specialInstr
       completedLabel?: string
     ) => ({
       text: isActive ? label : (completedLabel || `✅ ${label}`),
-      callback_data: isActive ? `order_${action}_${orderId}` : `status_info_${orderId}`
+      callback_data: isActive ? `${action}:${orderId}` : `status_info:${orderId}`
     });
 
     if (isFinalStatus) {
@@ -614,17 +681,18 @@ ${data.specialInstructions ? `📝 <b>Özel Talimatlar:</b>\n${data.specialInstr
     const preparingActive = status === OrderStatus.PENDING || status === OrderStatus.CONFIRMED || status === OrderStatus.PREPARING;
     const deliveringActive = status === OrderStatus.PREPARING || status === OrderStatus.READY || status === OrderStatus.ASSIGNED || status === OrderStatus.PICKED_UP || status === OrderStatus.DELIVERING || status === OrderStatus.ARRIVED;
     const completeActive = status === OrderStatus.DELIVERING || status === OrderStatus.ARRIVED || status === OrderStatus.READY || status === OrderStatus.PICKED_UP;
+    const rejectActive = !isFinalStatus;
 
     return {
       inline_keyboard: [
         [
           buildActionButton(
             confirmActive ? '✅ Onayla' : '✅ Onaylandı',
-            'confirm',
+            'approve',
             confirmActive,
             '✅ Onaylandı'
           ),
-          buildActionButton('❌ Reddet', 'reject', status !== OrderStatus.CANCELLED && !isFinalStatus, '❌ Reddedildi')
+          buildActionButton('❌ Reddet', 'reject', rejectActive, '❌ Reddedildi')
         ],
         [
           buildActionButton(
@@ -635,7 +703,7 @@ ${data.specialInstructions ? `📝 <b>Özel Talimatlar:</b>\n${data.specialInstr
           ),
           buildActionButton(
             deliveringActive ? '🚚 Yolda' : '🚚 Yolda ✅',
-            'delivery',
+            'on_the_way',
             deliveringActive,
             '🚚 Yolda ✅'
           )
@@ -643,11 +711,11 @@ ${data.specialInstructions ? `📝 <b>Özel Talimatlar:</b>\n${data.specialInstr
         [
           buildActionButton(
             '✅ Teslim Edildi',
-            'completed',
+            'delivered',
             completeActive,
             '✅ Teslim Edildi'
           ),
-          { text: '📞 Müşteriyi Ara', callback_data: `call_customer_${orderId}` }
+          { text: '📞 Müşteriyi Ara', callback_data: `call:${orderId}` }
         ]
       ]
     };
