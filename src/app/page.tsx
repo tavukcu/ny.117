@@ -1004,7 +1004,7 @@ export default function HomePage() {
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-6 pt-8">
                 <Link 
-                  href="/restaurant-apply" 
+                  href="/restaurants/apply"
                   className="group bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-6 px-12 rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl inline-flex items-center justify-center gap-4 text-xl"
                 >
                   <Store className="h-7 w-7" />

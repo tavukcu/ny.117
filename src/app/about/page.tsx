@@ -457,7 +457,7 @@ export default function AboutPage() {
               </Link>
               
               <Link
-                href="/restaurant-apply"
+                href="/restaurants/apply"
                 className="bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20 text-white font-bold py-4 px-8 rounded-2xl transition-all duration-300 transform hover:scale-105 inline-flex items-center justify-center gap-3"
               >
                 <ChefHat className="h-5 w-5" />

@@ -10,7 +10,7 @@ module.exports = {
     '/debug/*',
     '/test-*',
     '/restaurant-login',
-    '/restaurant-apply',
+    '/restaurants/apply',
     '/register',
     '/profile',
     '/account/*',

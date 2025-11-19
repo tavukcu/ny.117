@@ -37,6 +37,16 @@ export interface TelegramNotificationData {
   specialInstructions?: string;
 }
 
+interface RestaurantApplicationNotification {
+  applicationId: string;
+  restaurantName: string;
+  contactName: string;
+  phone: string;
+  fullAddress: string;
+  cuisineType: string;
+  note?: string;
+}
+
 export class TelegramService {
   private static readonly BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
   private static readonly API_URL = `https://api.telegram.org/bot${this.BOT_TOKEN}`;
@@ -81,6 +91,41 @@ export class TelegramService {
     } catch (error) {
       console.error('❌ Telegram yeni sipariş bildirimi hatası:', error);
       return false;
+    }
+  }
+
+  static async sendRestaurantApplicationNotification(data: RestaurantApplicationNotification) {
+    try {
+      if (!this.BOT_TOKEN) {
+        console.warn('Telegram bot token tanımsız, başvuru bildirimi gönderilemedi');
+        return;
+      }
+
+      const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+      if (!adminChatId) return;
+
+      const text = `
+📥 *Yeni Restoran Başvurusu*
+
+🏪 *Restoran:* ${data.restaurantName}
+👤 *Yetkili:* ${data.contactName}
+📞 *Telefon:* ${data.phone}
+🍽️ *Mutfağı:* ${data.cuisineType}
+
+📍 *Adres:*
+${data.fullAddress}
+
+📝 *Not:* ${data.note || 'Belirtilmedi'}
+🆔 *Başvuru ID:* ${data.applicationId}
+      `.trim();
+
+      await this.sendMessage({
+        chat_id: adminChatId,
+        text,
+        parse_mode: 'Markdown',
+      });
+    } catch (error) {
+      console.error('Telegram başvuru bildirimi hatası:', error);
     }
   }
 
