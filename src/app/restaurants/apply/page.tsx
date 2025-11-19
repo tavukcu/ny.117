@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import { RestaurantApplicationService } from '@/services/restaurantApplicationService';
 import { TelegramService } from '@/services/telegramService';
@@ -18,6 +19,7 @@ const CUISINES = [
 ];
 
 export default function RestaurantApplyPage() {
+  const router = useRouter();
   const [form, setForm] = useState({
     restaurantName: '',
     contactName: '',
@@ -81,7 +83,7 @@ export default function RestaurantApplyPage() {
         applicationId,
       });
 
-      toast.success('Başvurunuz başarıyla alındı. En kısa sürede sizinle iletişime geçeceğiz.');
+      toast.success('Başvurunuz işleme alındı. Sonucu size en kısa zamanda bildirilecektir.');
       setForm({
         restaurantName: '',
         contactName: '',
@@ -90,6 +92,7 @@ export default function RestaurantApplyPage() {
         cuisineType: CUISINES[0],
         note: '',
       });
+      setTimeout(() => router.push('/'), 1500);
     } catch (error) {
       console.error('Başvuru gönderme hatası:', error);
       toast.error('Başvuru gönderilirken bir sorun oluştu. Lütfen tekrar deneyin.');
@@ -222,7 +225,7 @@ export default function RestaurantApplyPage() {
                   ) : (
                     <>
                       <Send className="h-5 w-5" />
-                      Başvuruyu Gönder
+                      Kayıt Ol
                     </>
                   )}
                 </button>
