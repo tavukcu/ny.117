@@ -2,15 +2,44 @@
 
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import { RestaurantApplicationService, SimpleRestaurantApplication } from '@/services/restaurantApplicationService';
-import { CheckCircle, Trash2, Loader2, Phone, MapPin, NotebookPen } from 'lucide-react';
-import { TelegramService } from '@/services/telegramService';
+import {
+  RestaurantApplicationService,
+  SimpleRestaurantApplication,
+} from '@/services/restaurantApplicationService';
+import {
+  CheckCircle,
+  Loader2,
+  Phone,
+  Info,
+  Eye,
+  XCircle,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
+
+type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
+
+const statusLabels: Record<SimpleRestaurantApplication['status'], string> = {
+  pending: 'Beklemede',
+  approved: 'Onaylandı',
+  rejected: 'Reddedildi',
+};
+
+const statusClasses: Record<SimpleRestaurantApplication['status'], string> = {
+  pending: 'bg-yellow-100 text-yellow-800',
+  approved: 'bg-green-100 text-green-800',
+  rejected: 'bg-red-100 text-red-700',
+};
+
+const formatDate = (date: Date) =>
+  date.toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' });
 
 export default function RestaurantApplicationsPage() {
   const [applications, setApplications] = useState<SimpleRestaurantApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<StatusFilter>('pending');
+  const [detail, setDetail] = useState<SimpleRestaurantApplication | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const loadApplications = async () => {
     try {
@@ -32,19 +61,8 @@ export default function RestaurantApplicationsPage() {
   const handleApprove = async (application: SimpleRestaurantApplication) => {
     try {
       setActionId(application.id);
-      const restaurantId = await RestaurantApplicationService.approveApplication(application.id);
-
-      await TelegramService.sendRestaurantApplicationNotification({
-        applicationId: application.id,
-        restaurantName: application.restaurantName,
-        contactName: application.contactName,
-        phone: application.phone,
-        fullAddress: application.fullAddress,
-        cuisineType: application.cuisineType,
-        note: `Başvuru onaylandı. Restaurant ID: ${restaurantId}`,
-      });
-
-      toast.success('Başvuru onaylandı ve restoran oluşturuldu');
+      await RestaurantApplicationService.approveApplication(application.id);
+      setInfoMessage(`${application.restaurantName} onaylandı ve restoran kaydı oluşturuldu.`);
       await loadApplications();
     } catch (error) {
       console.error('Başvuru onaylanamadı:', error);
@@ -54,36 +72,60 @@ export default function RestaurantApplicationsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleReject = async (application: SimpleRestaurantApplication) => {
     try {
-      setActionId(id);
-      await RestaurantApplicationService.deleteApplication(id);
-      toast.success('Başvuru silindi');
+      setActionId(application.id);
+      await RestaurantApplicationService.rejectApplication(application.id);
+      setInfoMessage(`${application.restaurantName} başvurusu reddedildi.`);
       await loadApplications();
     } catch (error) {
-      console.error('Başvuru silinemedi:', error);
-      toast.error('Silme işlemi başarısız');
+      console.error('Başvuru reddedilemedi:', error);
+      toast.error('Red işlemi başarısız');
     } finally {
       setActionId(null);
     }
   };
 
-  const pendingApplications = applications.filter((app) => app.status === 'pending');
+  const filteredApplications =
+    filter === 'all'
+      ? applications
+      : applications.filter((app) => app.status === filter);
 
   return (
     <AdminLayout title="Restoran Başvuruları" subtitle="Yeni gelen başvuruları inceleyin">
       <div className="space-y-6">
-        <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-6 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-500">Bekleyen Başvurular</p>
-            <p className="text-3xl font-bold text-gray-900">{pendingApplications.length}</p>
+        {infoMessage && (
+          <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 flex items-center gap-2">
+            ✅ {infoMessage}
           </div>
-          <button
-            onClick={loadApplications}
-            className="px-4 py-2 text-sm font-semibold rounded-xl bg-gray-900 text-white hover:bg-black transition"
-          >
-            Yenile
-          </button>
+        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+          <div>
+            <p className="text-sm text-gray-500">Toplam Başvuru</p>
+            <p className="text-3xl font-bold text-gray-900">{applications.length}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(['all', 'pending', 'approved', 'rejected'] as StatusFilter[]).map((status) => (
+              <button
+                key={status}
+                onClick={() => setFilter(status)}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition ${
+                  filter === status
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {status === 'all' ? 'Tümü' : statusLabels[status]}
+              </button>
+            ))}
+            <button
+              onClick={loadApplications}
+              className="px-4 py-2 text-sm font-semibold rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50"
+            >
+              Yenile
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -91,76 +133,132 @@ export default function RestaurantApplicationsPage() {
             <Loader2 className="h-6 w-6 animate-spin mr-2" />
             Başvurular yükleniyor...
           </div>
-        ) : pendingApplications.length === 0 ? (
+        ) : filteredApplications.length === 0 ? (
           <div className="text-center py-16 rounded-2xl border border-dashed border-gray-200">
-            <p className="text-lg font-semibold text-gray-700">Bekleyen başvuru bulunmuyor</p>
+            <p className="text-lg font-semibold text-gray-700">Bu kategoriye ait başvuru yok</p>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {pendingApplications.map((application) => (
-              <div key={application.id} className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5 md:p-6">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{application.restaurantName}</h3>
-                    <p className="text-sm text-gray-500">Başvuru ID: {application.id}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleApprove(application)}
-                      disabled={actionId === application.id}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500 text-white font-semibold hover:bg-green-600 disabled:opacity-50"
-                    >
-                      {actionId === application.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckCircle className="h-4 w-4" />
-                      )}
-                      Onayla
-                    </button>
-                    <button
-                      onClick={() => handleDelete(application.id)}
-                      disabled={actionId === application.id}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 disabled:opacity-50"
-                    >
-                      {actionId === application.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                      Sil
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 text-sm text-gray-700">
-                  <div className="flex items-center gap-2">
-                    <NotebookPen className="h-4 w-4 text-gray-400" />
-                    <span>Yetkili: {application.contactName}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <span>{application.phone}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-gray-400" />
-                    <span>{application.fullAddress}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-500">Mutfağı:</span>
-                    <span className="font-medium">{application.cuisineType}</span>
-                  </div>
-                  {application.note && (
-                    <div className="text-gray-600">
-                      <span className="text-gray-500">Not: </span>
-                      {application.note}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto bg-white border border-gray-100 rounded-2xl shadow-sm">
+            <table className="min-w-full divide-y divide-gray-100">
+              <thead className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <tr>
+                  <th className="px-4 py-3">Başvuru Tarihi</th>
+                  <th className="px-4 py-3">Restoran</th>
+                  <th className="px-4 py-3">Yetkili</th>
+                  <th className="px-4 py-3">Telefon</th>
+                  <th className="px-4 py-3">İl / İlçe</th>
+                  <th className="px-4 py-3">Durum</th>
+                  <th className="px-4 py-3 text-right">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
+                {filteredApplications.map((application) => (
+                  <tr key={application.id} className="hover:bg-gray-50/70">
+                    <td className="px-4 py-3">{formatDate(application.createdAt)}</td>
+                    <td className="px-4 py-3 font-semibold">{application.restaurantName}</td>
+                    <td className="px-4 py-3">{application.contactName}</td>
+                    <td className="px-4 py-3">
+                      <a href={`tel:${application.phone}`} className="text-emerald-600 hover:underline flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {application.phone}
+                      </a>
+                    </td>
+                    <td className="px-4 py-3">
+                      {application.city} / {application.district}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusClasses[application.status]}`}>
+                        {statusLabels[application.status]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => setDetail(application)}
+                          className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100"
+                        >
+                          <Eye className="h-3 w-3" />
+                          Detay
+                        </button>
+                        <button
+                          onClick={() => handleApprove(application)}
+                          disabled={application.status !== 'pending' || actionId === application.id}
+                          className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
+                        >
+                          {actionId === application.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <CheckCircle className="h-3 w-3" />
+                          )}
+                          Onayla
+                        </button>
+                        <button
+                          onClick={() => handleReject(application)}
+                          disabled={application.status !== 'pending' || actionId === application.id}
+                          className="inline-flex items-center gap-1 rounded-full bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600 disabled:opacity-50"
+                        >
+                          {actionId === application.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <XCircle className="h-3 w-3" />
+                          )}
+                          Reddet
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
+
+      {detail && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl relative">
+            <button
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              onClick={() => setDetail(null)}
+            >
+              ✕
+            </button>
+            <div className="flex items-center gap-2 text-emerald-600">
+              <Info className="h-5 w-5" />
+              <h3 className="text-lg font-semibold text-gray-900">Başvuru Detayı</h3>
+            </div>
+            <div className="space-y-2 text-sm text-gray-700">
+              <p><strong>Restoran:</strong> {detail.restaurantName}</p>
+              <p><strong>Yetkili:</strong> {detail.contactName}</p>
+              <p><strong>Telefon:</strong> {detail.phone}</p>
+              <p><strong>Adres:</strong> {detail.fullAddress}</p>
+              <p><strong>İl / İlçe:</strong> {detail.city} / {detail.district}</p>
+              <p><strong>Mutfak türü:</strong> {detail.cuisineType}</p>
+              {detail.note && <p><strong>Not:</strong> {detail.note}</p>}
+              <p><strong>Başvuru Tarihi:</strong> {formatDate(detail.createdAt)}</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDetail(null)}
+                className="px-4 py-2 rounded-full border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+              >
+                Kapat
+              </button>
+              {detail.status === 'pending' && (
+                <button
+                  onClick={() => {
+                    setDetail(null);
+                    void handleApprove(detail);
+                  }}
+                  className="px-4 py-2 rounded-full bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600"
+                >
+                  Onayla
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

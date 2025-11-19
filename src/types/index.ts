@@ -166,7 +166,7 @@ export interface UserAddress extends Address {
   id: string;
   name: string; // "Ev", "İş", "Anne Evi"
   isDefault: boolean;
-  isActive: boolean;
+  isActive?: boolean;
   instructions?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -758,6 +758,7 @@ export interface RestaurantInfo {
   deliveryFee: number;
   estimatedDeliveryTime: number; // dakika cinsinden
   isOpen: boolean;
+  isActive: boolean;
   rating?: number; // Restoran puanı (0-5)
   reviewCount?: number; // Yorum sayısı
   commissionRate: number; // Komisyon oranı (varsayılan %9)

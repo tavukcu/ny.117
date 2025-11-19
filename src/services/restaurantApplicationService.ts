@@ -20,12 +20,15 @@ export interface SimpleRestaurantApplication {
   contactName: string;
   phone: string;
   fullAddress: string;
+  city: string;
+  district: string;
   cuisineType: string;
   note?: string;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: Date;
   updatedAt?: Date;
   restaurantId?: string;
+  source: 'public_form' | 'admin';
 }
 
 const COLLECTION = 'restaurantApplications';
@@ -41,9 +44,12 @@ const defaultWorkingHours = {
 };
 
 export class RestaurantApplicationService {
-  static async createApplication(data: Omit<SimpleRestaurantApplication, 'id' | 'status' | 'createdAt'>) {
+  static async createApplication(
+    data: Omit<SimpleRestaurantApplication, 'id' | 'status' | 'createdAt' | 'source'>
+  ) {
     const docRef = await addDoc(collection(db, COLLECTION), {
       ...data,
+      source: 'public_form',
       status: 'pending',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -62,10 +68,13 @@ export class RestaurantApplicationService {
         contactName: data.contactName,
         phone: data.phone,
         fullAddress: data.fullAddress,
+        city: data.city,
+        district: data.district,
         cuisineType: data.cuisineType,
         note: data.note,
         status: data.status,
         restaurantId: data.restaurantId,
+        source: data.source || 'public_form',
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate(),
       } as SimpleRestaurantApplication;
@@ -79,21 +88,28 @@ export class RestaurantApplicationService {
       throw new Error('Başvuru bulunamadı');
     }
 
-    const application = applicationSnap.data() as any;
+    const application = applicationSnap.data() as SimpleRestaurantApplication;
+    const normalizedCity = application.city?.trim() || 'Belirtilmedi';
+    const normalizedDistrict = application.district?.trim() || 'Belirtilmedi';
+    const normalizedAddress =
+      application.fullAddress?.trim() ||
+      `${normalizedDistrict}, ${normalizedCity}`.trim() ||
+      'Adres belirtilmedi';
+    const normalizedPhone = application.phone?.trim() || '';
 
     const restaurantPayload: Omit<RestaurantInfo, 'id' | 'createdAt' | 'updatedAt'> = {
       name: application.restaurantName,
       description: application.note || 'Neyisek restoranı',
       categoryIds: application.cuisineType ? [application.cuisineType] : [],
       address: {
-        street: application.fullAddress,
-        city: 'İstanbul',
-        district: '',
+        street: normalizedAddress,
+        city: normalizedCity,
+        district: normalizedDistrict,
         zipCode: '',
         country: 'Türkiye',
         coordinates: { lat: 0, lng: 0 },
       },
-      phone: application.phone,
+      phone: normalizedPhone,
       email: '',
       website: '',
       coverImageUrl: '',
@@ -103,6 +119,7 @@ export class RestaurantApplicationService {
       deliveryFee: 0,
       estimatedDeliveryTime: 30,
       isOpen: false,
+      isActive: false,
       rating: 0,
       reviewCount: 0,
       commissionRate: 0.09,
@@ -123,6 +140,13 @@ export class RestaurantApplicationService {
     });
 
     return restaurantId;
+  }
+
+  static async rejectApplication(applicationId: string) {
+    await updateDoc(doc(db, COLLECTION, applicationId), {
+      status: 'rejected',
+      updatedAt: serverTimestamp(),
+    });
   }
 
   static async deleteApplication(applicationId: string) {

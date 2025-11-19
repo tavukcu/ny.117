@@ -43,6 +43,8 @@ interface RestaurantApplicationNotification {
   contactName: string;
   phone: string;
   fullAddress: string;
+  city: string;
+  district: string;
   cuisineType: string;
   note?: string;
 }
@@ -105,16 +107,14 @@ export class TelegramService {
       if (!adminChatId) return;
 
       const text = `
-📥 *Yeni Restoran Başvurusu*
+🧾 *Yeni Restoran Başvurusu*
 
 🏪 *Restoran:* ${data.restaurantName}
 👤 *Yetkili:* ${data.contactName}
 📞 *Telefon:* ${data.phone}
-🍽️ *Mutfağı:* ${data.cuisineType}
-
-📍 *Adres:*
-${data.fullAddress}
-
+📍 *Adres:* ${data.fullAddress}
+🌆 *İl / İlçe:* ${data.city} / ${data.district}
+🍽️ *Mutfak:* ${data.cuisineType}
 📝 *Not:* ${data.note || 'Belirtilmedi'}
 🆔 *Başvuru ID:* ${data.applicationId}
       `.trim();

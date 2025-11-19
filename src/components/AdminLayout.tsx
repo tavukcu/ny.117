@@ -124,7 +124,7 @@ import {
   Crown,
   Gem,
   Diamond,
-
+  ClipboardList,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -167,6 +167,12 @@ const navigationItems = [
       { title: 'Onaylananlar', href: '/admin/restaurants?status=approved' },
       { title: 'Reddedilenler', href: '/admin/restaurants?status=rejected' }
     ]
+  },
+  {
+    title: 'Restoran Başvuruları',
+    href: '/admin/restaurant-applications',
+    icon: ClipboardList,
+    badge: null
   },
   {
     title: 'Ürünler',

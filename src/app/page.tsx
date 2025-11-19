@@ -483,6 +483,14 @@ export default function HomePage() {
                     )}
                   </button>
                 </div>
+                <div className="mt-3 flex justify-center md:justify-start">
+                  <Link
+                    href="/restaurants/apply"
+                    className="inline-flex items-center gap-2 border border-emerald-500 text-emerald-600 rounded-full px-4 py-2 text-sm font-semibold hover:bg-emerald-50 transition"
+                  >
+                    Restoran Olun
+                  </Link>
+                </div>
               </div>
             </div>
           </section>

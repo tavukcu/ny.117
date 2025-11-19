@@ -129,6 +129,12 @@ export default function Header() {
     }
   };
 
+  const getUserAvatarUrl = () => {
+    if (!user) return undefined;
+    const anyUser = user as any;
+    return (typeof anyUser?.profileImage === 'string' && anyUser.profileImage) || user.profile?.profileImage;
+  };
+
   // Kullanıcı avatarı render fonksiyonu
   const renderUserAvatar = (size: 'small' | 'default' | 'large' = 'default') => {
     const sizeClasses = {
@@ -143,11 +149,13 @@ export default function Header() {
       large: 'text-lg'
     };
 
-    if (user?.profileImage) {
+    const avatarUrl = getUserAvatarUrl();
+
+    if (avatarUrl) {
       return (
         <img
-          src={user.profileImage}
-          alt={user.displayName || 'Profil resmi'}
+          src={avatarUrl}
+          alt={user?.displayName || 'Profil resmi'}
           className={`${sizeClasses[size]} rounded-full object-cover border-2 border-white shadow-sm`}
           onError={(e) => {
             // Resim yüklenemezse fallback'e geç
@@ -270,6 +278,12 @@ export default function Header() {
 
           {/* Right Section */}
           <div className="flex items-center space-x-2 sm:space-x-3">
+            <Link
+              href="/restaurants/apply"
+              className="hidden md:inline-flex items-center gap-2 border border-emerald-500 text-emerald-600 rounded-full px-4 py-2 text-sm font-semibold hover:bg-emerald-50 transition"
+            >
+              Restoran Olun
+            </Link>
             {/* Free Delivery CTA Button - sadece giriş yapmamış kullanıcılar için */}
             {!user && !guestUser && (
               <Link 
@@ -533,7 +547,8 @@ export default function Header() {
                 { href: '/', icon: Home, label: 'Ana Sayfa' },
                 { href: '/menu', icon: UtensilsCrossed, label: 'Menü' },
                 { href: '/contact', icon: Phone, label: 'İletişim' },
-                { href: '/delivery-areas', icon: MapPin, label: 'Teslimat Alanları' }
+                { href: '/delivery-areas', icon: MapPin, label: 'Teslimat Alanları' },
+                { href: '/restaurants/apply', icon: ChefHat, label: 'Restoran Olun' },
               ].map((item) => (
                 <Link 
                   key={item.href}
@@ -558,7 +573,7 @@ export default function Header() {
                       <div className="relative">
                         {renderUserAvatar('default')}
                         {/* Fallback için gizli div */}
-                        {user?.profileImage && (
+                        {getUserAvatarUrl() && (
                           <div className="hidden w-10 h-10 bg-gradient-to-r from-green-500 to-yellow-500 rounded-full flex items-center justify-center">
                             <span className="text-white font-bold">
                               {user.displayName?.charAt(0).toUpperCase() || 'U'}
