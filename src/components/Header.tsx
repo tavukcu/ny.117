@@ -35,7 +35,7 @@ export default function Header() {
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const { totalItems: cartItemsCount } = useCart();
+  const { totalItems } = useCart();
   const [guestUser, setGuestUser] = useState<any>(null);
   const [guestDataTrigger, setGuestDataTrigger] = useState(0);
 
@@ -301,14 +301,16 @@ export default function Header() {
             {/* Cart Icon */}
             <Link 
               href="/cart" 
-              className="relative p-1.5 sm:p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-all duration-300"
+              className="p-1.5 sm:p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-all duration-300"
             >
-              <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-gray-700 hover:text-green-600 transition-colors duration-300" />
-              {cartItemsCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-yellow-500 text-gray-900 text-xs font-bold rounded-full h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center">
-                  {cartItemsCount}
-                </span>
-              )}
+              <div className="relative">
+                <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-gray-700 hover:text-green-600 transition-colors duration-300" />
+                {totalItems > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-green-500 text-[11px] font-semibold text-white flex items-center justify-center shadow-sm">
+                    {totalItems}
+                  </span>
+                )}
+              </div>
             </Link>
 
             {/* User Section */}

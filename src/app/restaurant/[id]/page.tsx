@@ -595,13 +595,15 @@ export default function RestaurantDetailPage() {
       {/* Floating Cart Button (Mobile) */}
       {cartItemCount > 0 && (
         <div className="fixed bottom-4 right-4 xl:hidden z-50">
-          <button className="bg-primary-600 text-white p-4 rounded-full shadow-lg hover:bg-primary-700 transition-colors">
-            <div className="relative">
-              <ShoppingCart className="h-6 w-6" />
-              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {cartItemCount}
-              </span>
-            </div>
+          <button
+            type="button"
+            onClick={() => router.push('/cart')}
+            className="flex items-center gap-2 rounded-full bg-[#00C853] text-white px-5 py-3 shadow-lg hover:bg-[#00b44a] active:scale-95 transition-all duration-200"
+          >
+            <ShoppingCart className="h-5 w-5" />
+            <span className="text-sm font-semibold">
+              Sepeti Gör ({cartItemCount})
+            </span>
           </button>
         </div>
       )}
