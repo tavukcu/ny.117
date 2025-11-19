@@ -158,7 +158,7 @@ ${itemsList}
 📍 *Teslimat Adresi:*
 ${addressText}
 [Google Haritalar'da aç](${googleMapsUrl})
-[Apple Haritalar'da aç](${appleMapsUrl})
+[iPhone Haritalar’da aç](${appleMapsUrl})
 
 ⏱ *Tahmini Süre:* ${data.estimatedTime ? `${data.estimatedTime} dakika` : 'Belirtilmedi'}
 ${data.specialInstructions ? `\n📝 *Özel Talimatlar:*\n${data.specialInstructions}` : ''}
